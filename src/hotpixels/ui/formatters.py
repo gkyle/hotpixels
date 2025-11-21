@@ -169,7 +169,7 @@ def format_image_summary(image_files: list[str], profile: Optional[HotPixelProfi
             # Overall compatibility summary
             all_match = make_match and model_match and shutter_match and iso_match and (temp_match is None or temp_match) and (uid_match is None or uid_match)
             if all_match:
-                text_lines.append("<span style='color: #4CAF50; font-weight: bold;'>✓ Images are fully compatible with the current profile</span>")
+                text_lines.append("<span style='color: #4CAF50; font-weight: bold;'>✓ Images are compatible with the current profile</span>")
             else:
                 text_lines.append("<span style='color: #F44336; font-weight: bold;'>⚠ Images have different settings than the current profile</span>")
         

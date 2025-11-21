@@ -119,7 +119,7 @@
                   <x>0</x>
                   <y>0</y>
                   <width>348</width>
-                  <height>536</height>
+                  <height>400</height>
                  </rect>
                 </property>
                 <layout class="QVBoxLayout" name="statisticsScrollLayout">
@@ -170,45 +170,6 @@
                 </layout>
                </widget>
               </widget>
-             </item>
-             <item>
-              <layout class="QHBoxLayout" name="profileButtonsLayout">
-               <property name="spacing">
-                <number>6</number>
-               </property>
-               <property name="leftMargin">
-                <number>4</number>
-               </property>
-               <property name="topMargin">
-                <number>4</number>
-               </property>
-               <property name="rightMargin">
-                <number>4</number>
-               </property>
-               <property name="bottomMargin">
-                <number>4</number>
-               </property>
-               <item>
-                <widget class="QPushButton" name="pushButton">
-                 <property name="text">
-                  <string>Open Profile</string>
-                 </property>
-                </widget>
-               </item>
-               <item>
-                <spacer name="profileButtonsSpacer">
-                 <property name="orientation">
-                  <enum>Qt::Horizontal</enum>
-                 </property>
-                 <property name="sizeHint" stdset="0">
-                  <size>
-                   <width>40</width>
-                   <height>20</height>
-                  </size>
-                 </property>
-                </spacer>
-               </item>
-              </layout>
              </item>
             </layout>
            </widget>
@@ -267,7 +228,7 @@
             <property name="maximumSize">
              <size>
               <width>16777215</width>
-              <height>120</height>
+              <height>160</height>
              </size>
             </property>
             <property name="title">
@@ -291,7 +252,7 @@
                <property name="maximumSize">
                 <size>
                  <width>16777215</width>
-                 <height>100</height>
+                 <height>140</height>
                 </size>
                </property>
                <property name="alternatingRowColors">
@@ -614,14 +575,21 @@
                <bool>true</bool>
               </property>
               <property name="text">
-               <string>Open Image</string>
+               <string>Open Images</string>
               </property>
              </widget>
             </item>
             <item>
              <widget class="QPushButton" name="batchProcessButton">
               <property name="text">
-               <string>Batch Process</string>
+               <string>Correct and Save All Images</string>
+              </property>
+             </widget>
+            </item>
+            <item>
+             <widget class="QPushButton" name="correctImageButton">
+              <property name="text">
+               <string>Correct Image</string>
               </property>
              </widget>
             </item>
@@ -629,6 +597,13 @@
              <widget class="QPushButton" name="saveButton">
               <property name="text">
                <string>Save Image</string>
+              </property>
+             </widget>
+            </item>
+            <item>
+             <widget class="QPushButton" name="openFolderButton">
+              <property name="text">
+               <string>Open Folder</string>
               </property>
              </widget>
             </item>

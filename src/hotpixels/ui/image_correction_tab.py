@@ -51,6 +51,7 @@ class ImageCorrectionTab(QWidget):
         self.cached_original_raw: Optional[DNGImage] = None  # Uncorrected original for interactive preview
         self.cached_cnn_detections: List[Tuple[int, int, float]] = []  # CNN results with confidence
         self.cached_preview_image: Optional[DNGImage] = None  # Current preview with corrections applied
+        self.cached_corrected_raw: Optional[DNGImage] = None  # Cached corrected raw image for batch mode ROI display
         
         # Current correction parameters
         self.current_deviation_threshold: Optional[float] = None  # From profile by default
@@ -80,11 +81,17 @@ class ImageCorrectionTab(QWidget):
     
     def initialize_button_states(self):
         """Initialize button states."""
-        # Initially disable both buttons until we have images and profile loaded
+        # Initially disable buttons until we have images and profile loaded
         if hasattr(self.ui, 'saveButton'):
             self.ui.saveButton.setEnabled(False)
+        if hasattr(self.ui, 'openFolderButton'):
+            self.ui.openFolderButton.setEnabled(False)
+            self.ui.openFolderButton.setVisible(False)  # Only shown after batch processing
+        if hasattr(self.ui, 'correctImageButton'):
+            self.ui.correctImageButton.setEnabled(False)
         if hasattr(self.ui, 'batchProcessButton'):
             self.ui.batchProcessButton.setEnabled(False)
+            self.ui.batchProcessButton.setVisible(False)  # Hidden until multiple images loaded
 
     def load_ui(self):
         """Load the UI from the .ui file"""
@@ -156,10 +163,11 @@ class ImageCorrectionTab(QWidget):
 
     def setup_connections(self):
         """Connect UI signals to slots"""
-        self.ui.pushButton.clicked.connect(self.load_profile)
         self.ui.openOriginalButton.clicked.connect(self.select_image)
+        self.ui.correctImageButton.clicked.connect(self.start_interactive_correction)
         self.ui.batchProcessButton.clicked.connect(self.start_batch_correction)
-        self.ui.saveButton.clicked.connect(self.save_interactive_correction)
+        self.ui.saveButton.clicked.connect(self.save_corrected_image)
+        self.ui.openFolderButton.clicked.connect(self.open_corrected_folder)
         self.ui.saveTrainingDataButton.clicked.connect(self.save_training_data)
 
         # Configure and connect sliders for interactive parameter adjustment
@@ -206,6 +214,20 @@ class ImageCorrectionTab(QWidget):
         """Check if we're in interactive mode (single image) or batch mode (multiple images)."""
         return len(self.image_paths) == 1
     
+    def start_interactive_correction(self):
+        """Start interactive correction process for single image."""
+        if not self.app.current_profile or not self.image_paths:
+            QMessageBox.warning(self, "Missing Data", "Please load both a profile and an image first.")
+            return
+
+        # Get common hot pixels from profile
+        if self.app.current_profile.get_median_noise_frame() is None:
+            QMessageBox.warning(self, "No Hot Pixels", "The loaded profile contains no hot pixels to correct.")
+            return
+        
+        # Start interactive preview
+        self._start_interactive_preview()
+    
     def start_batch_correction(self):
         """Start batch correction process for multiple images."""
         if not self.app.current_profile or not self.image_paths:
@@ -220,12 +242,12 @@ class ImageCorrectionTab(QWidget):
         # Start batch correction
         self._start_batch_correction()
     
-    def save_interactive_correction(self):
-        """Save the current corrected preview image (interactive mode only)."""
+    def save_corrected_image(self):
+        """Save the current corrected preview image."""
         if not self.cached_preview_image:
-            QMessageBox.warning(self, "No Preview", "No corrected preview available to save.")
+            QMessageBox.warning(self, "No Preview", "No corrected image available to save.")
             return
-        
+            
         try:
             # Save the preview image
             filename = self.cached_preview_image.filename
@@ -246,6 +268,21 @@ class ImageCorrectionTab(QWidget):
             QMessageBox.critical(self, "Save Error", f"Failed to save corrected image:\n{str(e)}")
             tb.print_exc()
     
+    def open_corrected_folder(self):
+        """Open folder containing batch-corrected images."""
+        if not self.corrected_image_paths:
+            QMessageBox.warning(self, "No Files", "No corrected images available.")
+            return
+            
+        try:
+            # Open the directory containing the first corrected image
+            folder_path = os.path.dirname(self.corrected_image_paths[0])
+            os.startfile(folder_path)
+            self.showStatusMessage(f"Opened folder: {folder_path}", 3000)
+        except Exception as e:
+            QMessageBox.critical(self, "Open Folder Error", f"Failed to open folder:\n{str(e)}")
+            tb.print_exc()
+    
     def _start_interactive_preview(self):
         """Start interactive preview mode for single image."""
         self.showStatusMessage("Computing corrections preview...", 0)
@@ -262,8 +299,9 @@ class ImageCorrectionTab(QWidget):
         
         # Run CNN detection if enabled (this is the slow part - run in background)
         if self.correct_cnn_hotpixels_enabled:
-            self.ui.saveButton.setText("Running CNN...")
+            # Disable buttons during CNN processing
             self.ui.saveButton.setEnabled(False)
+            self.ui.correctImageButton.setEnabled(False)
             self.ui.batchProcessButton.setEnabled(False)
             
             # Run detection in background worker
@@ -317,9 +355,7 @@ class ImageCorrectionTab(QWidget):
         # Compute initial preview
         self.recompute_preview()
         
-        # Update UI for interactive mode
-        self.ui.saveButton.setEnabled(True)
-        self.ui.saveButton.setText("Save")
+        # Update UI for interactive mode - check_ready_state will handle button enabling
         self.check_ready_state()  # Update button states
         
         # Enable parameter controls
@@ -349,47 +385,10 @@ class ImageCorrectionTab(QWidget):
     
     def _start_batch_correction(self):
         """Start batch correction mode for multiple images."""
-        # Check if we need to load all images (lazy loading optimization)
-        if not self.rawImages or len([img for img in self.rawImages if img is not None]) < len(self.image_paths):
-            self.showStatusMessage("Loading all images for correction...", 3000)
-
-            # Load all images now for correction
-            self.correction_loading_worker = MultiImageLoadingWorker(self.image_paths, load_all=True)
-            self.correction_loading_worker.progress.connect(self.update_correction_loading_progress)
-            self.correction_loading_worker.finished.connect(self.all_images_loaded_for_correction)
-            self.correction_loading_worker.error.connect(self.correction_loading_error)
-
-            # Disable button during loading
-            self.ui.batchProcessButton.setEnabled(False)
-            self.ui.batchProcessButton.setText("Loading images...")
-            self.ui.saveButton.setEnabled(False)
-
-            self.correction_loading_worker.start()
-        else:
-            # All images already loaded, proceed with correction
-            self._start_correction()
-
-    def update_correction_loading_progress(self, message: str):
-        """Update button text with loading progress"""
-        self.ui.batchProcessButton.setText(f"Loading: {message}")
-
-    def all_images_loaded_for_correction(self, image_paths: List[str], rgb_images: List[DNGImage], raw_images: List[DNGImage]):
-        """Handle completion of loading all images for correction"""
-        # Update our image data
-        self.image_paths = image_paths
-        self.rgbImages = rgb_images
-        self.rawImages = raw_images
-
-        # Now start the actual correction
+        # In batch mode, don't pre-load all images - the CorrectionWorker will load them on-demand
+        # This saves memory when processing large batches
         self._start_correction()
-
-    def correction_loading_error(self, error_message: str):
-        """Handle error during image loading for correction"""
-        QMessageBox.critical(self, "Loading Error", f"Failed to load images for correction:\n{error_message}")
-
-        # Re-enable buttons
-        self.check_ready_state()
-
+    
     def _start_correction(self):
         """Start the actual correction process (helper method)"""
         # Check if noise profile subtraction is enabled
@@ -402,7 +401,6 @@ class ImageCorrectionTab(QWidget):
                                        subtract_noise_profile=subtract_noise, 
                                        apply_residual_hotpixel_model=apply_cnn,
                                        cnn_sensitivity=self.current_sensitivity)
-        self.worker.progress.connect(self.update_correction_progress)
         self.worker.detailed_progress.connect(self.update_correction_progress_bar)
         self.worker.finished.connect(self.correction_finished)
         self.worker.error.connect(self.correction_error)
@@ -416,10 +414,6 @@ class ImageCorrectionTab(QWidget):
 
         self.worker.start()
 
-    def update_correction_progress(self, message: str):
-        """Update button text with progress message"""
-        self.ui.batchProcessButton.setText(message)
-    
     def update_correction_progress_bar(self, current: int, total: int, message: str):
         """Update progress bar with detailed progress"""
         if hasattr(self, 'correction_progress_bar'):
@@ -436,17 +430,13 @@ class ImageCorrectionTab(QWidget):
         # Store model hot pixels for overlay visualization
         self.model_hot_pixels = model_hot_pixels or []
 
-        # Load and cache corrected RGB images for ROI display
+        # Don't preload RGB images - load on demand when user requests
         self.corrected_rgb_images = []
-        try:
-            for corrected_path in corrected_paths:
-                corrected_rgb = DNGImage(corrected_path, process_rgb=True)
-                corrected_rgb.white_balance()
-                self.corrected_rgb_images.append(corrected_rgb)
-            print(f"Cached {len(self.corrected_rgb_images)} corrected RGB images for ROI display")
-        except Exception as e:
-            print(f"Error caching corrected images: {e}")
-            self.corrected_rgb_images = []
+        
+        # Complete the progress bar to 100% and keep it visible
+        if hasattr(self, 'correction_progress_bar'):
+            self.correction_progress_bar.setValue(self.correction_progress_bar.maximum())
+            self.correction_progress_bar.setFormat("100% - Complete")
 
         hot_pixels = self.app.get_hot_pixels(self.app.current_profile)
         subtract_noise = hasattr(
@@ -500,6 +490,10 @@ class ImageCorrectionTab(QWidget):
         """Handle correction error"""
         QMessageBox.critical(self, "Correction Error", f"Batch correction failed:\n{error_message}")
         print(f"Correction error: {error_message}")
+        
+        # Update progress bar to show error
+        if hasattr(self, 'correction_progress_bar'):
+            self.correction_progress_bar.setFormat("Error during correction")
 
         # Re-enable button and clean up worker
         self.check_ready_state()
@@ -586,35 +580,6 @@ class ImageCorrectionTab(QWidget):
         self.ui.saveTrainingDataButton.setText("Save Training Data")
         self.showStatusMessage("Training data capture failed", 5000)
 
-    def load_profile(self):
-        # Get the last used directory from preferences
-        start_dir = ""
-        if self.main_window and hasattr(self.main_window, 'preferences'):
-            last_dir = self.main_window.preferences.get_last_directory("profile")
-            if last_dir:
-                start_dir = last_dir
-
-        filename, _ = QFileDialog.getOpenFileName(
-            self,
-            "Load Hot Pixel Profile",
-            start_dir,
-            "JSON Files (*.json);;All Files (*)"
-        )
-
-        if filename:
-            if self.main_window:
-                # Use consolidated profile loading
-                self.main_window.load_profile_file(filename)
-            else:
-                # Fallback for standalone operation
-                try:
-                    profile = HotPixelProfile.load_from_file(filename)
-                    self.app.current_profile = profile
-                    self.update_profile_info()
-                    self.check_ready_state()
-                except Exception as e:
-                    QMessageBox.critical(self, "Load Error", f"Failed to load profile:\n{str(e)}")
-
     def select_image(self):
         # Get the last used directory from preferences
         start_dir = ""
@@ -673,6 +638,7 @@ class ImageCorrectionTab(QWidget):
         self.cached_original_raw = None
         self.cached_cnn_detections = []
         self.cached_preview_image = None
+        self.cached_corrected_raw = None
         
         # Disable and uncheck the "Show corrected image" checkbox since we don't have corrected images
         if hasattr(self.ui, 'showCorrectedImageCheckBox'):
@@ -748,15 +714,7 @@ class ImageCorrectionTab(QWidget):
                 # Add each image file path with loading status
                 for i, image_path in enumerate(self.image_paths, 1):
                     filename = os.path.basename(image_path)
-
-                    # Check if this image is loaded or just a placeholder
-                    if (self.rgbImages and i <= len(self.rgbImages) and
-                            self.rgbImages[i-1] is not None):
-                        status = "✓ Loaded"
-                        display_text = f"{i}. {filename} ({status})"
-                    else:
-                        status = "⏳ Will load during correction"
-                        display_text = f"{i}. {filename} ({status})"
+                    display_text = f"{i}. {filename}"
 
                     self.ui.inputFilesListWidget.addItem(display_text)
 
@@ -914,27 +872,92 @@ class ImageCorrectionTab(QWidget):
             
         return QPixmap.fromImage(q_image)
 
-    def check_ready_state(self):
-        # Check if we have profile and at least some images (first one loaded for preview)
-        ready = bool(self.app.current_profile and self.image_paths and self.rgbImages and self.rgbImages[0] is not None)
+    def highlight_primary_button(self, button_name: str):
+        """Highlight the primary action button for the current context."""
+        # Define the highlight style
+        highlight_style = "background-color: #0078D4; color: white; font-weight: bold;"
+        normal_style = ""
         
-        if self.is_interactive_mode():
-            # Interactive mode: Enable Save button if we have a preview, disable Batch Process
-            save_ready = ready and self.cached_preview_image is not None
+        # List of all buttons that can be highlighted
+        buttons = {
+            'openOriginalButton': self.ui.openOriginalButton,
+            'correctImageButton': self.ui.correctImageButton,
+            'batchProcessButton': self.ui.batchProcessButton,
+            'saveButton': self.ui.saveButton,
+            'openFolderButton': self.ui.openFolderButton
+        }
+        
+        # Apply styles
+        for name, button in buttons.items():
+            if hasattr(self.ui, name.replace('Button', 'Button')):
+                if name == button_name:
+                    button.setStyleSheet(highlight_style)
+                else:
+                    button.setStyleSheet(normal_style)
+    
+    def check_ready_state(self):
+        # Check if we have profile and images loaded
+        has_profile = bool(self.app.current_profile)
+        has_paths = bool(self.image_paths)
+        has_raw = bool(self.rawImages and self.rawImages[0] is not None)
+        ready = has_profile and has_paths and has_raw
+        
+        # Always show Correct Image button when images are loaded (for parameter testing)
+        self.ui.correctImageButton.setVisible(has_paths)
+        
+        # Enable Correct Image button if ready and not already corrected
+        self.ui.correctImageButton.setEnabled(ready and self.cached_preview_image is None)
+        
+        # Determine which button to highlight based on context
+        if not has_paths:
+            # No images loaded - highlight Open Images button
+            self.highlight_primary_button('openOriginalButton')
+        elif self.is_interactive_mode():
+            # Single image mode: Hide Batch Process and Open Folder buttons
+            self.ui.batchProcessButton.setVisible(False)
+            self.ui.openFolderButton.setVisible(False)
+            
+            # Enable Save button only if we have a corrected preview
+            save_ready = self.cached_preview_image is not None
             self.ui.saveButton.setEnabled(save_ready)
-            self.ui.saveButton.setText("Save")
-            self.ui.batchProcessButton.setEnabled(False)
-            self.ui.batchProcessButton.setText("Batch Process")
-        else:
-            # Batch mode: Enable Batch Process button, disable Save
-            self.ui.saveButton.setEnabled(False)
-            self.ui.saveButton.setText("Save")
-            self.ui.batchProcessButton.setEnabled(ready)
-            if ready:
-                button_text = f"Batch Process ({len(self.image_paths)} images)"
+            
+            # Highlight based on correction state
+            if save_ready:
+                # Corrections complete - highlight Save button
+                self.highlight_primary_button('saveButton')
+            elif ready:
+                # Ready to correct - highlight Correct Image button
+                self.highlight_primary_button('correctImageButton')
             else:
-                button_text = "Batch Process"
-            self.ui.batchProcessButton.setText(button_text)
+                # Not ready yet - highlight Open Images
+                self.highlight_primary_button('openOriginalButton')
+        else:
+            # Multiple images mode: Show Batch Process button, manage Open Folder button
+            self.ui.batchProcessButton.setVisible(True)
+            
+            # Enable Batch Process button if ready
+            self.ui.batchProcessButton.setEnabled(ready)
+            
+            # Save button only enabled if we have an interactive preview of first image
+            has_preview = self.cached_preview_image is not None
+            self.ui.saveButton.setEnabled(has_preview)
+            
+            # Open Folder button only shown and enabled after batch correction completes
+            batch_corrected = bool(self.corrected_image_paths and len(self.corrected_image_paths) > 0)
+            self.ui.openFolderButton.setVisible(batch_corrected)
+            self.ui.openFolderButton.setEnabled(batch_corrected)
+            
+            # Highlight appropriate button for batch mode
+            if has_preview:
+                # Interactive correction done on first image - highlight Save to save that preview
+                self.highlight_primary_button('saveButton')
+            elif ready:
+                # Ready for batch processing - highlight Batch Process button
+                # (batch processing auto-saves, so no need to highlight after completion)
+                self.highlight_primary_button('batchProcessButton')
+            else:
+                # Not ready - highlight Open Images
+                self.highlight_primary_button('openOriginalButton')
     
     def _copy_dng_image(self, dng_image: DNGImage) -> DNGImage:
         """Create a shallow copy of a DNGImage for preview modifications.
@@ -1171,7 +1194,7 @@ class ImageCorrectionTab(QWidget):
 
     def on_image_mouse_moved(self, x: int, y: int):
         """Handle mouse movement over the image - extract and display ROIs"""
-        if not self.rgbImages or self.rgbImages[0] is None:
+        if not self.rawImages or self.rawImages[0] is None:
             return
             
         # Update position display
@@ -1209,14 +1232,16 @@ class ImageCorrectionTab(QWidget):
             if self.cached_preview_image:
                 corrected_data = self.cached_preview_image.get_data()
             # Otherwise use batch-corrected image if available
-            elif self.corrected_rgb_images and len(self.corrected_rgb_images) > 0:
-                # Load the corrected image as raw (not RGB) for ROI comparison
-                if self.corrected_image_paths and len(self.corrected_image_paths) > 0:
+            elif self.corrected_image_paths and len(self.corrected_image_paths) > 0:
+                # Load and cache the corrected raw image once to avoid reloading on every mouse move
+                if self.cached_corrected_raw is None:
                     try:
-                        corrected_raw = DNGImage(self.corrected_image_paths[0], process_rgb=False)
-                        corrected_data = corrected_raw.get_data()
+                        self.cached_corrected_raw = DNGImage(self.corrected_image_paths[0], process_rgb=False)
                     except Exception as e:
                         print(f"Error loading corrected raw image: {e}")
+                
+                if self.cached_corrected_raw is not None:
+                    corrected_data = self.cached_corrected_raw.get_data()
             
             if corrected_data is not None and original_max is not None:
                 try:
