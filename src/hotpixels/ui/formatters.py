@@ -1,6 +1,9 @@
-from typing import Optional
+from typing import Optional, TYPE_CHECKING
 
 from hotpixels.profile import HotPixelProfile
+
+if TYPE_CHECKING:
+    from hotpixels.image import DNGImage
 
 
 def format_profile_summary(profile: Optional[HotPixelProfile], no_profile_message: str = "No profile loaded", show_camera_id_edit: bool = False) -> str:
@@ -61,15 +64,16 @@ def format_profile_summary(profile: Optional[HotPixelProfile], no_profile_messag
     return styled_text
 
 
-def format_image_summary(image_files: list[str], profile: Optional[HotPixelProfile] = None) -> str:
+def format_image_summary(image_files: list[str], profile: Optional[HotPixelProfile] = None, first_image: Optional['DNGImage'] = None) -> str:
     """Format image information for display in the GUI."""
     if not image_files:
         return "No images loaded. Select dark frames to see image information."
     
     try:
-        # Load the first image to get metadata
+        # Load the first image to get metadata if not provided
         from hotpixels.image import DNGImage
-        first_image = DNGImage(image_files[0])
+        if first_image is None:
+            first_image = DNGImage(image_files[0])
         
         # Build formatted text content with improved styling
         text_lines = []

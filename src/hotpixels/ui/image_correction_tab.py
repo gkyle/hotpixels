@@ -793,9 +793,21 @@ class ImageCorrectionTab(QWidget):
         try:
             if show_rgb:
                 # Use RGB version if checkbox is checked
-                if self.rgbImages and self.rgbImages[0] is not None:
-                    rgb_data = self.rgbImages[0].get_data()
-                    pixmap = self.numpy_to_qpixmap(rgb_data)
+                if self.rgbImages and len(self.rgbImages) > 0:
+                    # Load RGB image on-demand if not already loaded
+                    if self.rgbImages[0] is None and self.image_paths:
+                        print("Loading RGB image on-demand...")
+                        rgb_image = DNGImage(self.image_paths[0], process_rgb=True)
+                        rgb_image.white_balance()
+                        self.rgbImages[0] = rgb_image
+                    
+                    if self.rgbImages[0] is not None:
+                        rgb_data = self.rgbImages[0].get_data()
+                        pixmap = self.numpy_to_qpixmap(rgb_data)
+                    else:
+                        # Fall back to raw if RGB loading failed
+                        raw_data = self.rawImages[0].get_data()
+                        pixmap = self.numpy_to_qpixmap(raw_data)
                 else:
                     # Fall back to raw if RGB not available
                     raw_data = self.rawImages[0].get_data()
@@ -877,11 +889,29 @@ class ImageCorrectionTab(QWidget):
             self.ui.batchProcessButton.setText(button_text)
     
     def _copy_dng_image(self, dng_image: DNGImage) -> DNGImage:
-        """Create a deep copy of a DNGImage for preview modifications."""
-        # Create new DNGImage with same filename
-        copied_image = DNGImage(dng_image.filename, process_rgb=False)
-        # Deep copy the raw image data
+        """Create a shallow copy of a DNGImage for preview modifications.
+        
+        This creates a new DNGImage instance that shares the same underlying
+        DNG file handle but has an independent copy of the raw image data.
+        This avoids re-reading the file from disk.
+        """
+        # Create new instance without going through full __init__
+        copied_image = object.__new__(DNGImage)
+        
+        # Copy Image base class attributes
+        copied_image.filename = dng_image.filename
+        copied_image._exifread_tags = dng_image._exifread_tags  # Share lazy-loaded tags
+        copied_image.sensor_temperature = dng_image.sensor_temperature
+        copied_image.unique_id = dng_image.unique_id
+        copied_image._exiftool_metadata = dng_image._exiftool_metadata  # Share lazy-loaded metadata
+        
+        # Share the DNG file handle (read-only operations)
+        copied_image.dng = dng_image.dng
+        copied_image.rgb = dng_image.rgb
+        
+        # Deep copy only the raw image data (what we actually modify)
         copied_image.raw_img = dng_image.raw_img.copy()
+        
         return copied_image
     
     def recompute_preview(self):
@@ -1056,7 +1086,9 @@ class ImageCorrectionTab(QWidget):
 
     def update_image_summary(self):
         """Update the image summary display with current image information"""
-        styled_text = format_image_summary(self.image_paths, self.app.current_profile)
+        # Pass already-loaded image to avoid re-reading from disk
+        first_image = self.rawImages[0] if self.rawImages and self.rawImages[0] else None
+        styled_text = format_image_summary(self.image_paths, self.app.current_profile, first_image)
         if hasattr(self.ui, 'imageSummaryLabel'):
             self.ui.imageSummaryLabel.setText(styled_text)
 

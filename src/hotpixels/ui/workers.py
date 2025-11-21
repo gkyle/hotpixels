@@ -114,19 +114,18 @@ class MultiImageLoadingWorker(QThread):
                 
                 self.progress.emit("All images loaded successfully.")
             else:
-                # Only load first image for preview (startup/open images optimization)
+                # Only load first RAW image for preview (startup/open images optimization)
+                # RGB version will be loaded on-demand when user requests it
                 if self.image_paths:
                     first_path = self.image_paths[0]
                     self.progress.emit("Loading first image for preview...")
                     
-                    rgb_image = DNGImage(first_path, process_rgb=True)
-                    rgb_image.white_balance()
-                    rgb_images.append(rgb_image)
-                    
+                    # Only load raw image at startup
                     raw_image = DNGImage(first_path, process_rgb=False)
                     raw_images.append(raw_image)
                     
-                    # Add placeholders for remaining images (will be loaded on demand)
+                    # Add placeholders for RGB and remaining images (will be loaded on demand)
+                    rgb_images.append(None)
                     for i in range(1, len(self.image_paths)):
                         rgb_images.append(None)
                         raw_images.append(None)
