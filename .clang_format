@@ -1,0 +1,11 @@
+BasedOnStyle: Google
+BraceWrapping:
+  AfterFunction: false
+  AfterClass: false
+  AfterControlStatement: false
+  AfterEnum: false
+  AfterStruct: false
+  AfterNamespace: false
+UseTab: Always
+IndentWidth: 4
+TabWidth: 4

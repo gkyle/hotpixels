@@ -1,0 +1,92 @@
+[project]
+name = "hotpixel"
+version = "0.1.0"
+description = "A tool for detecting and correcting hot pixels in images."
+requires-python = "==3.12.*"
+dependencies = [
+    "dataclasses-json>=0.6.7",
+    "dngio",
+    "exifread>=3.5.1",
+    "ipykernel>=7.1.0",
+    "matplotlib>=3.10.7",
+    "numpy>=2.3.4",
+    "opencv-python-headless>=4.11.0.86",
+    "pillow>=12.0.0",
+    "pyside6>=6.10.0",
+    "scikit-learn>=1.7.2",
+    "scipy>=1.16.3",
+    "seaborn>=0.13.2",
+    "torch>=2.6.0",
+    "torchvision>=0.21.0",
+    "tqdm>=4.67.1",
+]
+
+[dependency-groups]
+dev = [
+    "pytest>=8.4.2",
+    "flake8>=7.1.1",
+    "pep8-naming>=0.14.1",
+]
+
+[tool.flake8]
+max-line-length = 120
+extend-ignore = ["E203", "W503"]
+per-file-ignores = [
+    "__init__.py:F401",
+]
+
+[project.optional-dependencies]
+cpu = [
+  "torch>=2.6.0",
+]
+cu118 = [
+  "torch>=2.6.0",
+]
+cu124 = [
+  "torch>=2.6.0",
+]
+
+[tool.uv]
+environments = [
+  "sys_platform == 'win32'",
+  "sys_platform == 'darwin'",
+  "sys_platform == 'linux'",
+]
+conflicts = [
+  [
+    { extra = "cpu" },
+    { extra = "cu118" },
+    { extra = "cu124" },
+  ],
+]
+
+[tool.uv.sources]
+dngio = [
+  { url = "https://github.com/gkyle/dngio/releases/download/v0.1/dngio-1.0.0-cp312-cp312-win_amd64.whl", marker = "sys_platform == 'win32' and platform_machine == 'AMD64'" },
+  { url = "https://github.com/gkyle/dngio/releases/download/v0.1/dngio-1.0.0-cp312-cp312-win_arm64.whl", marker = "sys_platform == 'win32' and platform_machine == 'ARM64'" },
+  { url = "https://github.com/gkyle/dngio/releases/download/v0.1/dngio-1.0.0-cp312-cp312-macosx_11_0_x86_64.whl", marker = "sys_platform == 'darwin' and platform_machine == 'x86_64'" },
+  { url = "https://github.com/gkyle/dngio/releases/download/v0.1/dngio-1.0.0-cp312-cp312-macosx_11_0_arm64.whl", marker = "sys_platform == 'darwin' and platform_machine == 'arm64'" },
+  { git = "https://github.com/gkyle/dngio", tag = "v0.1", marker = "(sys_platform != 'win32' or (platform_machine != 'AMD64' and platform_machine != 'ARM64')) and (sys_platform != 'darwin' or (platform_machine != 'x86_64' and platform_machine != 'arm64'))" },
+]
+
+torch = [
+  { index = "pytorch-cpu", extra = "cpu" },
+  { index = "pytorch-cu118", extra = "cu118" },
+  { index = "pytorch-cu124", extra = "cu124" },
+]
+
+[[tool.uv.index]]
+name = "pytorch-cpu"
+url = "https://download.pytorch.org/whl/cpu"
+explicit = true
+
+[[tool.uv.index]]
+name = "pytorch-cu118"
+url = "https://download.pytorch.org/whl/cu118"
+explicit = true
+
+[[tool.uv.index]]
+name = "pytorch-cu124"
+url = "https://download.pytorch.org/whl/cu124"
+explicit = true
+
