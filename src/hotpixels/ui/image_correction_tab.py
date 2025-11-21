@@ -193,7 +193,7 @@ class ImageCorrectionTab(QWidget):
             return
 
         # Get common hot pixels from profile
-        if self.app.current_profile._median_noise_frame is None:
+        if self.app.current_profile.get_median_noise_frame() is None:
             QMessageBox.warning(self, "No Hot Pixels", "The loaded profile contains no hot pixels to correct.")
             return
         

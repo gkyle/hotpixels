@@ -101,6 +101,7 @@ class HotPixelProfile:
 
     median_noise_path: Optional[str] = None
     mean_noise_path: Optional[str] = None
+    _lazy_load: bool = False  # Internal flag to defer noise frame loading
 
     def __post_init__(self):
         # Initialize numpy arrays
@@ -111,12 +112,29 @@ class HotPixelProfile:
         if self.frame_paths is None:
             self.frame_paths = []
 
-        # Load from paths if they exist
-        if self.median_noise_path is not None:
+        # Only load noise frames if not doing lazy loading
+        if not self._lazy_load:
+            self._load_noise_frames()
+    
+    def _load_noise_frames(self):
+        """Load noise frames from disk (deferred during lazy loading)."""
+        if self.median_noise_path is not None and self._median_noise_frame is None:
             self._median_noise_frame = cv2.imread(self.median_noise_path, cv2.IMREAD_UNCHANGED)
 
-        if self.mean_noise_path is not None:
+        if self.mean_noise_path is not None and self._mean_noise_frame is None:
             self._mean_noise_frame = cv2.imread(self.mean_noise_path, cv2.IMREAD_UNCHANGED)
+    
+    def get_median_noise_frame(self):
+        """Get median noise frame, loading it if necessary."""
+        if self._median_noise_frame is None and self._lazy_load:
+            self._load_noise_frames()
+        return self._median_noise_frame
+    
+    def get_mean_noise_frame(self):
+        """Get mean noise frame, loading it if necessary."""
+        if self._mean_noise_frame is None and self._lazy_load:
+            self._load_noise_frames()
+        return self._mean_noise_frame
 
     @staticmethod
     def from_dark_frames(dark_frames_paths: List[str], deviation_threshold: int) -> 'HotPixelProfile':
@@ -315,13 +333,45 @@ class HotPixelProfile:
             json.dump(self.to_dict(), f, indent=2)
 
     @classmethod
-    def load_from_file(cls, filename: str) -> 'HotPixelProfile':
-        """Load a profile from a JSON file"""
+    def load_from_file(cls, filename: str, lazy_load: bool = False) -> 'HotPixelProfile':
+        """Load a profile from a JSON file.
+        
+        Args:
+            filename: Path to the profile JSON file
+            lazy_load: If True, defer loading noise frames until accessed
+        """
         with open(filename, 'r') as f:
             json_data = json.load(f)
         
         # Use dataclasses_json for deserialization
-        return cls.from_dict(json_data)        
+        profile = cls.from_dict(json_data)
+        profile._lazy_load = lazy_load
+        
+        return profile
+    
+    @classmethod
+    def load_metadata_only(cls, filename: str) -> dict:
+        """Fast loading of just profile metadata without noise frames.
+        
+        Returns a dict with metadata fields, avoiding the overhead of loading
+        large noise frame TIF files.
+        """
+        with open(filename, 'r') as f:
+            json_data = json.load(f)
+        
+        # Extract only the metadata we need for scanning
+        from pathlib import Path
+        return {
+            'file_path': str(filename),
+            'file_name': Path(filename).name,
+            'camera_make': json_data.get('camera_metadata', {}).get('camera_make'),
+            'camera_model': json_data.get('camera_metadata', {}).get('camera_model'),
+            'camera_uid': json_data.get('camera_metadata', {}).get('camera_uid'),
+            'shutter_speed': json_data.get('camera_metadata', {}).get('shutter_speed'),
+            'iso': json_data.get('camera_metadata', {}).get('iso'),
+            'sensor_temperature': json_data.get('camera_metadata', {}).get('sensor_temperature'),
+            'image_resolution': tuple(json_data.get('camera_metadata', {}).get('image_resolution')) if json_data.get('camera_metadata', {}).get('image_resolution') else None,
+        }        
 
 
 def generate_dark_frames(dark_frames: List[DNGImage]):

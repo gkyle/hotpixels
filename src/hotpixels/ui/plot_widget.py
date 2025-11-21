@@ -196,8 +196,8 @@ class PlotWidget(QWidget):
 
         # Get noise profile data (median noise frame)
         noise_data = None
-        if hasattr(profile, '_median_noise_frame'):
-            noise_data = profile._median_noise_frame
+        if hasattr(profile, 'get_median_noise_frame'):
+            noise_data = profile.get_median_noise_frame()
 
         if noise_data is None:
             # Show message if no noise profile is available

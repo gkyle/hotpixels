@@ -32,12 +32,12 @@ class App:
         return corrected_filename
 
     def subtract_dark_frame(self, dng_image: DNGImage, hot_pixel_profile: HotPixelProfile):
-        dng_image.subtract_dark_frame(hot_pixel_profile._mean_noise_frame)
+        dng_image.subtract_dark_frame(hot_pixel_profile.get_mean_noise_frame())
         
     def get_hot_pixels(self, hot_pixel_profile: HotPixelProfile, deviation_threshold: Optional[float] = None) -> List[Tuple[int, int, float]]:
         """Get hot pixels from profile with optional custom deviation threshold.
         """
-        median_dark_frame = hot_pixel_profile._median_noise_frame
+        median_dark_frame = hot_pixel_profile.get_median_noise_frame()
         if deviation_threshold is None:
             deviation_threshold = hot_pixel_profile.deviation_threshold
         threshold = np.mean(median_dark_frame) + deviation_threshold * np.std(median_dark_frame)
@@ -190,21 +190,8 @@ class App:
         
         for profile_file in profile_files:
             try:
-                profile = HotPixelProfile.load_from_file(str(profile_file))
-                
-                # Extract metadata
-                metadata = {
-                    'file_path': str(profile_file),
-                    'file_name': profile_file.name,
-                    'camera_make': profile.camera_metadata.camera_make if profile.camera_metadata else None,
-                    'camera_model': profile.camera_metadata.camera_model if profile.camera_metadata else None,
-                    'camera_uid': profile.camera_metadata.camera_uid if profile.camera_metadata else None,
-                    'shutter_speed': profile.camera_metadata.shutter_speed if profile.camera_metadata else None,
-                    'iso': profile.camera_metadata.iso if profile.camera_metadata else None,
-                    'sensor_temperature': profile.camera_metadata.sensor_temperature if profile.camera_metadata else None,
-                    'image_resolution': profile.camera_metadata.image_resolution if profile.camera_metadata else None,
-                }
-                
+                # Use fast metadata-only loading to avoid loading large noise frame files
+                metadata = HotPixelProfile.load_metadata_only(str(profile_file))
                 profile_data.append(metadata)
                 
             except Exception as e:
