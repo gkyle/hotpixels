@@ -41,6 +41,7 @@ class CorrectionWorker(QThread):
     """Background worker for hot pixel correction"""
     
     progress = Signal(str)
+    detailed_progress = Signal(int, int, str)  # current, total, message for fine-grained progress
     finished = Signal(list, list)  # List of corrected image paths, list of model hot pixel lists
     error = Signal(str)
     
@@ -60,22 +61,43 @@ class CorrectionWorker(QThread):
             corrected_paths = []
             model_hot_pixels = []
             
+            total_steps = len(self.image_paths) * (3 if self.apply_residual_hotpixel_model else 2)
+            current_step = 0
+            
             for i, image_path in enumerate(self.image_paths):
-                self.progress.emit(f"Processing {i+1}/{len(self.image_paths)}...")
+                # Load image
+                self.progress.emit(f"Loading image {i+1}/{len(self.image_paths)}...")
+                self.detailed_progress.emit(current_step, total_steps, f"Loading image {i+1}/{len(self.image_paths)}")
                 dngImage = DNGImage(image_path)
+                current_step += 1
                 
+                # Subtract dark frame
                 if self.subtract_noise_profile:
+                    self.progress.emit(f"Subtracting dark frame {i+1}/{len(self.image_paths)}...")
+                    self.detailed_progress.emit(current_step, total_steps, f"Dark frame subtraction {i+1}/{len(self.image_paths)}")
                     self.app.subtract_dark_frame(dngImage, self.profile)
                 
+                # Correct profile hot pixels
+                self.progress.emit(f"Correcting hot pixels {i+1}/{len(self.image_paths)}...")
+                self.detailed_progress.emit(current_step, total_steps, f"Profile correction {i+1}/{len(self.image_paths)}")
                 self.app.correct_hot_pixels(dngImage, self.profile)
+                current_step += 1
 
                 if self.apply_residual_hotpixel_model:
-                    # Reuse CNN detection logic (call directly since we're already in a background thread)
+                    # CNN detection with tile progress
                     self.progress.emit(f"Running CNN detection on image {i+1}/{len(self.image_paths)}...")
-                    detections = self.app.detect_residual_hotpixels_cnn(dngImage)
+                    
+                    def cnn_progress(tiles_done, tiles_total, msg):
+                        self.progress.emit(f"Image {i+1}/{len(self.image_paths)}: {msg}")
+                        self.detailed_progress.emit(current_step, total_steps, msg)
+                    
+                    detections = self.app.detect_residual_hotpixels_cnn(dngImage, progress_callback=cnn_progress)
                     self.app.apply_cnn_corrections(dngImage, detections, sensitivity=self.cnn_sensitivity)
                     model_hot_pixels.append(detections)
+                    current_step += 1
                 
+                # Save corrected image
+                self.progress.emit(f"Saving corrected image {i+1}/{len(self.image_paths)}...")
                 corrected_path = self.app.save_corrected_image(dngImage, self.subtract_noise_profile, self.apply_residual_hotpixel_model)
                 corrected_paths.append(corrected_path)
             
@@ -216,6 +238,7 @@ class CNNDetectionWorker(QThread):
     """Worker for running CNN hot pixel detection in background"""
     finished = Signal(list)  # Emits list of (y, x, confidence) tuples
     progress = Signal(str)  # Progress messages
+    detailed_progress = Signal(int, int, str)  # Emits (current, total, message)
     error = Signal(str)  # Error messages
 
     def __init__(self, app: App, dng_image):
@@ -228,7 +251,14 @@ class CNNDetectionWorker(QThread):
         try:
             self.progress.emit("Running CNN hot pixel detection...")
             
-            detections = self.app.detect_residual_hotpixels_cnn(self.dng_image)
+            # CNN detection with progress callback
+            def cnn_progress(tiles_done, tiles_total, msg):
+                self.detailed_progress.emit(tiles_done, tiles_total, msg)
+            
+            detections = self.app.detect_residual_hotpixels_cnn(
+                self.dng_image,
+                progress_callback=cnn_progress
+            )
             
             self.progress.emit("CNN detection complete.")
             self.finished.emit(detections)

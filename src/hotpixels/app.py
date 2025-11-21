@@ -51,7 +51,7 @@ class App:
         dng_image.correct_hot_pixels(hot_pixels)
         return hot_pixels
 
-    def detect_residual_hotpixels_cnn(self, dng_image: DNGImage, batch_size: int = 32) -> List[Tuple[int, int, float]]:
+    def detect_residual_hotpixels_cnn(self, dng_image: DNGImage, batch_size: int = 32, progress_callback=None) -> List[Tuple[int, int, float]]:
         """Detect residual hot pixels using CNN model"""
 
         # Create model and load trained weights
@@ -129,7 +129,9 @@ class App:
                 output_mask[y:y+original_h, x:x+original_w] = output_tile[:original_h, :original_w]
             
             # Progress update
-            if (batch_start // batch_size) % 10 == 0 or batch_end == total_tiles:
+            if progress_callback:
+                progress_callback(batch_end, total_tiles, f"CNN: Processing tiles {batch_end}/{total_tiles}")
+            elif (batch_start // batch_size) % 10 == 0 or batch_end == total_tiles:
                 print(f"Processed {batch_end}/{total_tiles} tiles...")
 
         print(f"\nProcessed {total_tiles} tiles total")

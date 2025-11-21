@@ -18,6 +18,7 @@ from PySide6.QtGui import QImage, QPixmap
 from PySide6.QtUiTools import QUiLoader
 from PySide6.QtWidgets import QMessageBox
 from PySide6.QtWidgets import QListWidgetItem as ListItem
+from PySide6.QtWidgets import QProgressBar, QHBoxLayout
 
 from hotpixels.app import App
 from hotpixels.profile import HotPixelProfile
@@ -95,6 +96,25 @@ class ImageCorrectionTab(QWidget):
         layout = QVBoxLayout()
         layout.addWidget(self.ui)
         self.setLayout(layout)
+        
+        # Add progress bar
+        if hasattr(self.ui, 'openOriginalButton'):
+            button = self.ui.openOriginalButton
+            parent_layout = button.parent().layout()
+            
+            if parent_layout:
+                # Create progress bar
+                self.correction_progress_bar = QProgressBar()
+                self.correction_progress_bar.setVisible(False)  # Hidden by default
+                self.correction_progress_bar.setMaximum(100)
+                self.correction_progress_bar.setValue(0)
+                self.correction_progress_bar.setTextVisible(True)
+                self.correction_progress_bar.setFormat("%p% - %v/%m")
+                
+                # Insert progress bar before the button in the layout
+                button_index = parent_layout.indexOf(button)
+                if button_index >= 0:
+                    parent_layout.insertWidget(button_index, self.correction_progress_bar)
         
         # Replace the originalImageLabel with ImageGraphicsView
         self.setup_image_view()
@@ -250,8 +270,15 @@ class ImageCorrectionTab(QWidget):
             detection_image = self._copy_dng_image(self.cached_original_raw)
             self.cnn_detection_worker = CNNDetectionWorker(self.app, detection_image)
             self.cnn_detection_worker.progress.connect(self.on_cnn_detection_progress)
+            self.cnn_detection_worker.detailed_progress.connect(self.on_cnn_detection_detailed_progress)
             self.cnn_detection_worker.finished.connect(self.on_cnn_detection_finished)
             self.cnn_detection_worker.error.connect(self.on_cnn_detection_error)
+            
+            # Show progress bar for interactive mode
+            if hasattr(self, 'correction_progress_bar'):
+                self.correction_progress_bar.setVisible(True)
+                self.correction_progress_bar.setValue(0)
+            
             self.cnn_detection_worker.start()
         else:
             # No CNN detection needed, proceed immediately
@@ -262,16 +289,25 @@ class ImageCorrectionTab(QWidget):
         """Handle CNN detection progress updates"""
         self.showStatusMessage(message, 0)
     
+    def on_cnn_detection_detailed_progress(self, current: int, total: int, message: str):
+        """Handle detailed CNN detection progress updates"""
+        if hasattr(self, 'correction_progress_bar'):
+            self.correction_progress_bar.setMaximum(total)
+            self.correction_progress_bar.setValue(current)
+            self.correction_progress_bar.setFormat(f"%p% - {message}")
+    
     def on_cnn_detection_finished(self, detections: List[Tuple[int, int, float]]):
         """Handle CNN detection completion"""
         self.cached_cnn_detections = detections
         self.cnn_detection_worker = None
+        
         self._finish_interactive_preview()
     
     def on_cnn_detection_error(self, error_message: str):
         """Handle CNN detection error"""
         QMessageBox.critical(self, "CNN Detection Error", f"Failed to run CNN detection:\n{error_message}")
         self.cnn_detection_worker = None
+        
         # Continue without CNN detections
         self.cached_cnn_detections = []
         self._finish_interactive_preview()
@@ -367,10 +403,14 @@ class ImageCorrectionTab(QWidget):
                                        apply_residual_hotpixel_model=apply_cnn,
                                        cnn_sensitivity=self.current_sensitivity)
         self.worker.progress.connect(self.update_correction_progress)
+        self.worker.detailed_progress.connect(self.update_correction_progress_bar)
         self.worker.finished.connect(self.correction_finished)
         self.worker.error.connect(self.correction_error)
 
-        # Disable buttons during processing
+        # Show progress bar and disable buttons during processing
+        if hasattr(self, 'correction_progress_bar'):
+            self.correction_progress_bar.setVisible(True)
+            self.correction_progress_bar.setValue(0)
         self.ui.batchProcessButton.setEnabled(False)
         self.ui.saveButton.setEnabled(False)
 
@@ -379,6 +419,13 @@ class ImageCorrectionTab(QWidget):
     def update_correction_progress(self, message: str):
         """Update button text with progress message"""
         self.ui.batchProcessButton.setText(message)
+    
+    def update_correction_progress_bar(self, current: int, total: int, message: str):
+        """Update progress bar with detailed progress"""
+        if hasattr(self, 'correction_progress_bar'):
+            self.correction_progress_bar.setMaximum(total)
+            self.correction_progress_bar.setValue(current)
+            self.correction_progress_bar.setFormat(f"%p% - {message}")
 
     def correction_finished(self, corrected_paths: List[str], model_hot_pixels: List[List] = None):
         """Handle successful correction completion"""
@@ -456,6 +503,7 @@ class ImageCorrectionTab(QWidget):
 
         # Re-enable button and clean up worker
         self.check_ready_state()
+        
         self.worker = None
     
     def save_training_data(self):
