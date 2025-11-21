@@ -51,14 +51,15 @@ class App:
         dng_image.correct_hot_pixels(hot_pixels)
         return hot_pixels
 
-    def detect_residual_hotpixels_cnn(self, dng_image: DNGImage) -> List[Tuple[int, int, float]]:
-        """Detect residual hot pixels using CNN model.
-        """
+    def detect_residual_hotpixels_cnn(self, dng_image: DNGImage, batch_size: int = 32) -> List[Tuple[int, int, float]]:
+        """Detect residual hot pixels using CNN model"""
+
         # Create model and load trained weights
         device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
         model = HotPixelSegmentationCNN().to(device)
+        
         # Load trained weights
-        checkpoint = torch.load('./models/hotpixel_cnn_syn.pt', map_location=device)
+        checkpoint = torch.load('./models/hotpixel_cnn_syn_fp16.pt', map_location=device)
         model.load_state_dict(checkpoint['model_state_dict'])
         model.eval()
 
@@ -71,17 +72,34 @@ class App:
         tile_size = 128
         stride = int(tile_size * 0.8)
 
-        # Process image in tiles
+        # Process image in tiles with batching
         output_mask = torch.zeros_like(tensor_raw_image)
-        processed_tiles = 0
-
+        
+        # Pre-compute all tile positions
+        tile_positions = []
         for y in range(0, tensor_raw_image.shape[0], stride):
             for x in range(0, tensor_raw_image.shape[1], stride):
+                tile_positions.append((y, x))
+        
+        total_tiles = len(tile_positions)
+        print(f"Processing {total_tiles} tiles in batches of {batch_size}...")
+        
+        # Process tiles in batches
+        for batch_start in range(0, total_tiles, batch_size):
+            batch_end = min(batch_start + batch_size, total_tiles)
+            batch_tiles = []
+            batch_metadata = []  # Store (y, x, original_h, original_w) for each tile
+            
+            # Prepare batch
+            for i in range(batch_start, batch_end):
+                y, x = tile_positions[i]
+                
                 # Extract tile
                 tile = tensor_raw_image[y:y+tile_size, x:x+tile_size]
                 # Normalize tile
-                tile_max = tile.max(dim=0).values
-                tile = tile / tile_max
+                tile_max = tile.max()
+                if tile_max > 0:
+                    tile = tile / tile_max
                 original_h, original_w = tile.shape
                 
                 # Pad if needed
@@ -90,23 +108,31 @@ class App:
                     pad_w = tile_size - tile.shape[1]
                     tile = torch.nn.functional.pad(tile, (0, pad_w, 0, pad_h), mode='constant', value=0)
                 
-                # Add batch and channel dimensions: (1, 1, H, W)
-                tile = tile.unsqueeze(0).unsqueeze(0).to(device)
-                
-                with torch.no_grad():
-                    output_tile = model(tile)
-                
-                # Remove batch and channel dimensions and move back to CPU
-                output_tile = output_tile.squeeze().cpu()
-                
-                # Place the valid portion back into the output mask
+                # Add channel dimension: (1, H, W)
+                tile = tile.unsqueeze(0)
+                batch_tiles.append(tile)
+                batch_metadata.append((y, x, original_h, original_w))
+            
+            # Stack tiles into batch: (batch_size, 1, H, W)
+            batch_tensor = torch.stack(batch_tiles).to(device)
+            
+            # Run inference on entire batch
+            with torch.no_grad():
+                batch_output = model(batch_tensor)
+            
+            # Move batch output back to CPU and unpack
+            batch_output = batch_output.cpu()
+            
+            # Place each tile output back into the output mask
+            for idx, (y, x, original_h, original_w) in enumerate(batch_metadata):
+                output_tile = batch_output[idx, 0]  # Remove batch and channel dims
                 output_mask[y:y+original_h, x:x+original_w] = output_tile[:original_h, :original_w]
-                
-                processed_tiles += 1
-                if processed_tiles % 10 == 0:
-                    print(f"Processed {processed_tiles} tiles...")
+            
+            # Progress update
+            if (batch_start // batch_size) % 10 == 0 or batch_end == total_tiles:
+                print(f"Processed {batch_end}/{total_tiles} tiles...")
 
-        print(f"\nProcessed {processed_tiles} tiles total")
+        print(f"\nProcessed {total_tiles} tiles total")
         print(f"Output mask shape: {output_mask.shape}")
 
         # Convert output mask to numpy and extract all detections with their confidence values
