@@ -1,8 +1,9 @@
+from pathlib import Path
 import exifread
 import dngio
 import numpy as np
-
-from hotpixels.dng_vendor_data import DNGVendorData
+# exiftool provide deeper access to MakerNotes and XMPPrivateData fields. It relies on an external executable. For now, treat as optional and use exifread for standard tags.
+import exiftool
 
 MOSAIC_MAP = {
     0: "R",
@@ -14,59 +15,95 @@ MOSAIC_MAP = {
 class Image:
     def __init__(self, filename: str):
         self.filename = filename
-        self.tags = self.get_exif_tags()
+        self._exifread_tags = None  # Lazy-loaded
         self.sensor_temperature = None
         self.unique_id = None
+        self._exiftool_metadata = None  # Lazy-loaded
 
-    def get_exif_tags(self):
-        with open(self.filename, "rb") as f:
-            tags = exifread.process_file(f)
-            return tags
+    def _get_exifread_tags(self):
+        """Lazily load exifread tags when needed."""
+        if self._exifread_tags is None:
+            with open(self.filename, "rb") as f:
+                self._exifread_tags = exifread.process_file(f)
+        return self._exifread_tags
+
+    def _get_exiftool_metadata(self):
+        """Lazily load exiftool metadata when needed."""
+        if self._exiftool_metadata is None:
+            try:
+                # Go up from src/hotpixels/image.py to repository root
+                repo_root = Path(__file__).parent.parent.parent
+                exiftool_path = str(repo_root / "vendor" / "exiftool.exe")
+                with exiftool.ExifToolHelper(executable=exiftool_path) as et:
+                    self._exiftool_metadata = et.get_metadata([self.filename])[0]
+            except Exception as e:
+                self._exiftool_metadata = {}  # Empty dict to avoid re-trying
+                print(f"Warning: Could not read metadata with exiftool: {e}")
+        return self._exiftool_metadata
         
     def get_camera_model(self) -> str:
-        return str(self.tags.get("Image Model", "Unknown"))
+        return str(self._get_exifread_tags().get("Image Model", "Unknown"))
     
     def get_camera_make(self) -> str:
-        return str(self.tags.get("Image Make", "Unknown"))
+        return str(self._get_exifread_tags().get("Image Make", "Unknown"))
     
     def get_shutter_speed(self) -> str:
-        return str(self.tags.get("EXIF ExposureTime", "Unknown"))
+        return str(self._get_exifread_tags().get("EXIF ExposureTime", "Unknown"))
     
     def get_iso(self) -> str:
-        return str(self.tags.get("EXIF ISOSpeedRatings", "Unknown"))
+        return str(self._get_exifread_tags().get("EXIF ISOSpeedRatings", "Unknown"))
     
     def get_resolution(self) -> tuple[int, int]:
-        width = int(str(self.tags.get("EXIF SubIFD0 ImageWidth", 0)))
-        height = int(str(self.tags.get("EXIF SubIFD0 ImageLength", 0)))
+        tags = self._get_exifread_tags()
+        width = int(str(tags.get("EXIF SubIFD0 ImageWidth", 0)))
+        height = int(str(tags.get("EXIF SubIFD0 ImageLength", 0)))
         return (width, height)
     
     def get_date_created(self) -> str:
-        return str(self.tags.get("EXIF DateTimeOriginal", "Unknown"))
+        return str(self._get_exifread_tags().get("EXIF DateTimeOriginal", "Unknown"))
     
     def get_sensor_temperature(self) -> float | None:
         if self.sensor_temperature is not None:
             return self.sensor_temperature
         
-        camera_make = self.get_camera_make()
-        if DNGVendorData.is_device_supported(camera_make):
-            temp = DNGVendorData.get_temperature(self.filename)
-            self.sensor_temperature = temp
-            return temp
-        else:
-            return None
+        possible_tags = [
+            "MakerNotes:SensorTemperature",
+            "MakerNotes:CameraTemperature",
+        ]
+
+        exiftool_metadata = self._get_exiftool_metadata()
+        if exiftool_metadata:
+            for tag in possible_tags:
+                temp_raw = exiftool_metadata.get(tag, None)
+                if temp_raw:
+                    # Parse temperature - it might be a string like "32 C" or just a number
+                    temp = parseTemperature(temp_raw)
+                    if temp is not None:
+                        self.sensor_temperature = temp
+                        return temp
+        
+        return None
     
     def get_unique_id(self) -> str | None:
         if self.unique_id is not None:
             return self.unique_id
         
-        camera_make = self.get_camera_make()
-        if DNGVendorData.is_device_supported(camera_make):
-            uid = DNGVendorData.get_unique_id(self.filename)
-            self.unique_id = uid
-            return uid
-        else:
-            return None
-        
+        possible_tags = [
+            "MakerNotes:InternalSerialNumber",
+            "MakerNotes:SerialNumber",
+        ]
+
+        exiftool_metadata = self._get_exiftool_metadata()
+        if exiftool_metadata:
+            for tag in possible_tags:
+                serial_raw = exiftool_metadata.get(tag, None)
+                if serial_raw:
+                    uid = parseSerialNumber(serial_raw)
+                    if uid:
+                        self.unique_id = uid
+                        return uid
+                    
+        return None
     
 class DNGImage(Image):
     def __init__(self, filename: str, process_rgb: bool = False, debug: bool = False):
@@ -79,6 +116,7 @@ class DNGImage(Image):
         return self.raw_img
 
     def white_balance(self, r_scale=None, g_scale=None, b_scale=None):
+        """Apply white balance to the RGB image using provided or calculated scaling factors."""
         if not self.rgb:
             raise ValueError("White balance can only be applied to RGB images")
         
@@ -115,8 +153,8 @@ class DNGImage(Image):
     def save(self, output_dng_path: str):
         return self.dng.replaceRawData(self.raw_img, output_dng_path)
 
-    # Returns Bayer pattern string like "RGGB"
     def get_bayer_pattern(self) -> str:
+        """Get the Bayer pattern string like "RGGB"."""
         mosaic = self.dng.getMosaic()
         bayer_pattern = ""
         for val in mosaic.flatten().tolist():
@@ -124,6 +162,7 @@ class DNGImage(Image):
         return bayer_pattern
 
     def subtract_dark_frame(self, dark_noise_frame):
+        """Subtract a dark noise frame from the raw image with normalization."""
         # Normalize to dark frame floor
         dark_mean = np.mean(dark_noise_frame)
         norm_dark_noise_frame = dark_noise_frame - dark_mean
@@ -135,6 +174,7 @@ class DNGImage(Image):
         return corrected_img
 
     def correct_hot_pixels(self, hot_pixels, radius=4):
+        """Correct hot pixels in the raw image using neighboring pixels of the same Bayer color."""
         raw_img = self.raw_img
         bayer_pattern = self.get_bayer_pattern()
 
@@ -168,3 +208,50 @@ class DNGImage(Image):
                 corrected_img[y, x] = int(np.mean(neighbor_values, axis=0))
 
         self.raw_img = corrected_img
+
+def parseSerialNumber(raw: str) -> str:
+    """Convert space delimited byte string to hex string."""
+    try:
+        # Convert the space-separated bytes to hex string
+        if isinstance(raw, str) and " " in raw:
+            bytes_list = [int(b) for b in raw.split()]
+            str_hex = ''.join(f'{b:02x}' for b in bytes_list)
+            return str_hex
+        else:
+            return raw
+
+    except ValueError:
+        return ''
+
+def parseTemperature(raw) -> float | None:
+    """Parse temperature value from EXIF data.
+    
+    Args:
+        raw: Temperature value which may be:
+            - A string like "32 C"
+            - A numeric value
+            - A multi-value string like "42 42 0" (takes first value)
+        
+    Returns:
+        Temperature as float in Celsius, or None if parsing fails
+    """
+    try:
+        if isinstance(raw, (int, float)):
+            return float(raw)
+        
+        if isinstance(raw, str):
+            # Remove common suffixes and whitespace
+            temp_str = raw.strip().upper()
+            temp_str = temp_str.replace(' C', '').replace('C', '').replace('°', '').strip()
+            
+            # Handle multi-value format like "42 42 0" - take first value
+            if ' ' in temp_str:
+                parts = temp_str.split()
+                if parts:
+                    return float(parts[0])
+            
+            return float(temp_str)
+        
+        return None
+    except (ValueError, AttributeError):
+        return None
