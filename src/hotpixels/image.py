@@ -1,4 +1,5 @@
 from pathlib import Path
+import platform
 import exifread
 import dngio
 import numpy as np
@@ -33,7 +34,13 @@ class Image:
             try:
                 # Go up from src/hotpixels/image.py to repository root
                 repo_root = Path(__file__).parent.parent.parent
-                exiftool_path = str(repo_root / "vendor" / "exiftool.exe")
+                
+                # Determine the correct exiftool executable based on platform
+                if platform.system() == "Windows":
+                    exiftool_path = str(repo_root / "vendor" / "exiftool.exe")
+                else:  # macOS, Linux, or other Unix-like systems
+                    exiftool_path = str(repo_root / "vendor" / "exiftool")
+                
                 with exiftool.ExifToolHelper(executable=exiftool_path) as et:
                     self._exiftool_metadata = et.get_metadata([self.filename])[0]
             except Exception as e:

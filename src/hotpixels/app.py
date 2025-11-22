@@ -5,6 +5,7 @@ import torch
 from typing import List, Tuple, Optional
 from pathlib import Path
 
+from hotpixels.gpu import GPUInfo
 from hotpixels.image import DNGImage
 from hotpixels.profile import HotPixelProfile
 from hotpixels.hot_pixel_segmentation_cnn import HotPixelSegmentationCNN
@@ -14,6 +15,7 @@ class App:
     def __init__(self):
         self.current_profile: HotPixelProfile = None
         self.profiles_directory = Path("./profiles")
+        self.gpuInfo = GPUInfo()
     
     def create_hot_pixel_profile(self, filenames, deviation_threshold) -> HotPixelProfile:
         return HotPixelProfile.from_dark_frames(filenames, deviation_threshold)
@@ -55,7 +57,7 @@ class App:
         """Detect residual hot pixels using CNN model"""
 
         # Create model and load trained weights
-        device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+        device = self.gpuInfo.getGpuNames()[0][0] if self.gpuInfo.getGpuPresent() else 'cpu'
         model = HotPixelSegmentationCNN().to(device)
         
         # Load trained weights
