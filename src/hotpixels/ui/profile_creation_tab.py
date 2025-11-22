@@ -277,6 +277,7 @@ class ProfileCreationTab(QWidget):
         self.worker.progress.connect(self.update_progress)
         self.worker.finished.connect(self.analysis_finished)
         self.worker.error.connect(self.analysis_error)
+        self.worker.warning.connect(self.analysis_warning)
 
         self.ui.analyzeButton.setEnabled(False)
         self.ui.progressBar.setVisible(True)
@@ -319,6 +320,30 @@ class ProfileCreationTab(QWidget):
         # self.ui.statusLabel.setText(f"Error: {error_message}")
 
         QMessageBox.critical(self, "Analysis Error", f"Analysis failed:\n{error_message}")
+
+    def analysis_warning(self, warnings: list, profile):
+        """Handle profile creation warnings - let user decide whether to keep the profile"""
+        self.ui.progressBar.setVisible(False)
+        self.ui.analyzeButton.setEnabled(True)
+        
+        # Create warning message
+        warning_text = "The following mismatches were detected in the dark frames:\n\n"
+        warning_text += "\n\n".join(warnings)
+        warning_text += "\n\nDo you want to keep this profile anyway?"
+        
+        # Show warning dialog with Yes/No buttons (No is default)
+        reply = QMessageBox.question(
+            self,
+            "Profile Mismatch Warning",
+            warning_text,
+            QMessageBox.Yes | QMessageBox.No,
+            QMessageBox.No  # Default button is No
+        )
+        
+        if reply == QMessageBox.Yes:
+            self.analysis_finished(profile)
+        else:
+            pass  # Do nothing, just re-enable the analyze button
 
     def update_deviation_tab_visibility(self):
         """Show or hide the deviation threshold tab based on available data"""

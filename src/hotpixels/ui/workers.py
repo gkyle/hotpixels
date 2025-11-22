@@ -7,7 +7,7 @@ import time
 from PySide6.QtCore import QThread, Signal
 
 from hotpixels.app import App
-from hotpixels.profile import HotPixelProfile
+from hotpixels.profile import HotPixelProfile, ProfileMismatchWarning
 from hotpixels.image import DNGImage
 
 
@@ -17,6 +17,7 @@ class AnalysisWorker(QThread):
     progress = Signal(str)  # Progress message
     finished = Signal(object)  # Analysis result
     error = Signal(str)  # Error message
+    warning = Signal(list, object)  # Warning messages with profile (warnings: List[str], profile: HotPixelProfile)
     
     def __init__(self, app: App, filenames: List[str], deviation_threshold: float):
         super().__init__()
@@ -33,6 +34,9 @@ class AnalysisWorker(QThread):
             )
             self.progress.emit("Analysis complete.")
             self.finished.emit(profile)
+        except ProfileMismatchWarning as w:
+            # Emit warning signal with the profile and warning messages
+            self.warning.emit(w.warnings, w.profile)
         except Exception as e:
             self.error.emit(str(e))
 

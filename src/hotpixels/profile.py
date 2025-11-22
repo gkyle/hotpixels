@@ -5,8 +5,18 @@ import numpy as np
 import json
 import os
 import cv2
+from pathlib import Path
 
 from hotpixels.image import DNGImage
+
+
+class ProfileMismatchWarning(Exception):
+    """Exception raised when dark frames have mismatched properties."""
+    def __init__(self, warnings: List[str], profile: Optional['HotPixelProfile'] = None):
+        self.warnings = warnings
+        self.profile = profile
+        message = "\n".join(warnings)
+        super().__init__(message)
 
 
 @dataclass_json
@@ -55,11 +65,34 @@ class HotPixelFrameStats:
     count_pixels: int = 0
     count_hot_pixels: int = 0
     hot_pixels: List[Tuple[int, int, float]] = field(default_factory=list)  # (y, x, value)
+    mean_channel_values: dict = field(default_factory=dict)  # Mean value for each color channel (R, G, B)
+    sensor_temperature: float | None = field(default=None)  # Sensor temperature in Celsius
 
     @staticmethod
     def from_dng_image(dng_image: DNGImage, deviation_threshold: float) -> 'HotPixelFrameStats':
         raw_data = dng_image.get_data()
         mean_value = float(np.mean(raw_data))
+
+        # Get mean value for each color channel in the Bayer pattern
+        bayer_pattern = dng_image.get_bayer_pattern()
+        bayer_positions = [
+            (0, 0),
+            (0, 1),
+            (1, 0),
+            (1, 1),
+        ]
+        
+        # Map Bayer pattern letters to color names and calculate means
+        mean_channel_values = {}
+        for i, (y_offset, x_offset) in enumerate(bayer_positions):
+            channel_data = raw_data[y_offset::2, x_offset::2]
+            color = bayer_pattern[i]  # Get the color letter from the pattern (e.g., 'R', 'G', 'B')
+            if color not in mean_channel_values:
+                mean_channel_values[color] = []
+            mean_channel_values[color].append(float(np.mean(channel_data)))
+        
+        # Average the values for colors that appear multiple times (e.g., G in RGGB)
+        mean_channel_values = {color: np.mean(values) for color, values in mean_channel_values.items()}
 
         threshold = mean_value + deviation_threshold * np.std(raw_data)
         hot_pixel_coords = np.argwhere(raw_data > threshold)
@@ -75,6 +108,8 @@ class HotPixelFrameStats:
             count_pixels=count_pixels,
             count_hot_pixels=count_hot_pixels,
             hot_pixels=hot_pixels,
+            mean_channel_values=mean_channel_values,
+            sensor_temperature=dng_image.get_sensor_temperature(),
         )
 
 
@@ -98,6 +133,8 @@ class HotPixelProfile:
     frame_paths: List[str] = field(default_factory=list)
     mean_values: List[float] = field(default_factory=list)
     hot_pixel_counts: List[int] = field(default_factory=list)
+    frame_channel_means: List[dict] = field(default_factory=list)  # Per-frame channel means (R, G, B)
+    frame_temperatures: List[float | None] = field(default_factory=list)  # Per-frame sensor temperatures
 
     median_noise_path: Optional[str] = None
     mean_noise_path: Optional[str] = None
@@ -140,8 +177,7 @@ class HotPixelProfile:
     def from_dark_frames(dark_frames_paths: List[str], deviation_threshold: int) -> 'HotPixelProfile':
         # Camera Info
         reference_dng = DNGImage(dark_frames_paths[0])
-        camera_metadata = CameraMetaData.from_dng_image(reference_dng)
-
+        
         dng_imgs = [DNGImage(path) for path in dark_frames_paths]
         
         # Validate that all dark frames have matching properties
@@ -152,21 +188,24 @@ class HotPixelProfile:
         ref_shutter = reference_dng.get_shutter_speed()
         ref_temp = reference_dng.get_sensor_temperature()
         
+        # Collect warnings instead of raising errors immediately
+        warnings = []
+        
         for i, dng_img in enumerate(dng_imgs[1:], start=1):  # Skip first image (reference)
             frame_path = dark_frames_paths[i]
             
             # Check camera make
             if dng_img.get_camera_make() != ref_make:
-                raise ValueError(
-                    f"Camera make mismatch in dark frame {i} ({frame_path}):\n"
+                warnings.append(
+                    f"Camera make mismatch in dark frame {i} ({Path(frame_path).name}):\n"
                     f"  Expected: {ref_make}\n"
                     f"  Got: {dng_img.get_camera_make()}"
                 )
             
             # Check camera model
             if dng_img.get_camera_model() != ref_model:
-                raise ValueError(
-                    f"Camera model mismatch in dark frame {i} ({frame_path}):\n"
+                warnings.append(
+                    f"Camera model mismatch in dark frame {i} ({Path(frame_path).name}):\n"
                     f"  Expected: {ref_model}\n"
                     f"  Got: {dng_img.get_camera_model()}"
                 )
@@ -175,16 +214,16 @@ class HotPixelProfile:
             if ref_uid is not None:
                 frame_uid = dng_img.get_unique_id()
                 if frame_uid != ref_uid:
-                    raise ValueError(
-                        f"Camera UID (Device ID) mismatch in dark frame {i} ({frame_path}):\n"
+                    warnings.append(
+                        f"Camera UID (Device ID) mismatch in dark frame {i} ({Path(frame_path).name}):\n"
                         f"  Expected: {ref_uid}\n"
                         f"  Got: {frame_uid if frame_uid else 'None'}"
                     )
             
             # Check ISO
             if dng_img.get_iso() != ref_iso:
-                raise ValueError(
-                    f"ISO mismatch in dark frame {i} ({frame_path}):\n"
+                warnings.append(
+                    f"ISO mismatch in dark frame {i} ({Path(frame_path).name}):\n"
                     f"  Expected: {ref_iso}\n"
                     f"  Got: {dng_img.get_iso()}"
                 )
@@ -206,8 +245,8 @@ class HotPixelProfile:
                     shutter_diff = abs(frame_shutter - ref_shutter_float)
                     max_shutter = max(abs(ref_shutter_float), abs(frame_shutter))
                     if max_shutter > 0 and (shutter_diff / max_shutter) > 0.05:
-                        raise ValueError(
-                            f"Shutter speed mismatch in dark frame {i} ({frame_path}):\n"
+                        warnings.append(
+                            f"Shutter speed mismatch in dark frame {i} ({Path(frame_path).name}):\n"
                             f"  Expected: {ref_shutter}s\n"
                             f"  Got: {frame_shutter_str}s\n"
                             f"  Difference: {shutter_diff:.4f}s (>{5}% of max)"
@@ -215,8 +254,8 @@ class HotPixelProfile:
                 except (ValueError, ZeroDivisionError):
                     # If parsing fails, fall back to exact string match
                     if frame_shutter_str != ref_shutter:
-                        raise ValueError(
-                            f"Shutter speed mismatch in dark frame {i} ({frame_path}):\n"
+                        warnings.append(
+                            f"Shutter speed mismatch in dark frame {i} ({Path(frame_path).name}):\n"
                             f"  Expected: {ref_shutter}\n"
                             f"  Got: {frame_shutter_str}"
                         )
@@ -228,8 +267,8 @@ class HotPixelProfile:
                     temp_diff = abs(frame_temp - ref_temp)
                     max_temp = max(abs(ref_temp), abs(frame_temp))
                     if max_temp > 0 and (temp_diff / max_temp) > 0.10:
-                        raise ValueError(
-                            f"Temperature mismatch in dark frame {i} ({frame_path}):\n"
+                        warnings.append(
+                            f"Temperature mismatch in dark frame {i} ({Path(frame_path).name}):\n"
                             f"  Expected: {ref_temp}°C\n"
                             f"  Got: {frame_temp}°C\n"
                             f"  Difference: {temp_diff:.2f}°C (>{10}% of max)"
@@ -239,8 +278,6 @@ class HotPixelProfile:
         median_noise_frame, mean_noise_frame = generate_dark_frames(dng_imgs)
 
         # Common Hot Pixels
-        # hot_pixels = find_hot_pixels(median_noise_frame, reference_dng.get_bayer_pattern(),
-        #                              deviation_threshold=deviation_threshold)
         threshold = np.mean(median_noise_frame) + deviation_threshold * np.std(median_noise_frame)
         hot_pixel_coords = np.argwhere(median_noise_frame > threshold)
         hot_pixels = [(int(y), int(x), float(median_noise_frame[y, x])) for y, x in hot_pixel_coords]
@@ -249,6 +286,29 @@ class HotPixelProfile:
         frame_stats = []
         for dark_dng in dng_imgs:
             frame_stats.append(HotPixelFrameStats.from_dng_image(dark_dng, deviation_threshold))
+
+        # Calculate average temperature across all frames for camera metadata
+        temperatures = [fs.sensor_temperature for fs in frame_stats if fs.sensor_temperature is not None]
+        avg_temperature = np.mean(temperatures) if temperatures else None
+        
+        # Create camera metadata with average temperature
+        if ref_uid is not None:
+            camera_id = "_".join([ref_make, ref_model, ref_uid[-4:]])
+        else:
+            camera_id = "_".join([ref_make, ref_model])
+            
+        camera_metadata = CameraMetaData(
+            camera_make=ref_make,
+            camera_model=ref_model,
+            shutter_speed=ref_shutter,
+            iso=ref_iso,
+            image_resolution=reference_dng.get_resolution(),
+            bayer_pattern=reference_dng.get_bayer_pattern(),
+            date_created=reference_dng.get_date_created(),
+            camera_id=camera_id,
+            camera_uid=ref_uid if ref_uid else "",
+            sensor_temperature=avg_temperature
+        )
 
         # For each frame, compute the fraction of frame-hot-pixels that are in hot_pixels
         hot_pixels_coords_set = set((y, x) for y, x, _ in hot_pixels)
@@ -286,11 +346,18 @@ class HotPixelProfile:
             frame_paths=dark_frames_paths,
             mean_values=[fs.mean_value for fs in frame_stats],
             hot_pixel_counts=[fs.count_hot_pixels for fs in frame_stats],
+            frame_channel_means=[fs.mean_channel_values for fs in frame_stats],
+            frame_temperatures=[fs.sensor_temperature for fs in frame_stats],
         )
 
         # Set the numpy arrays directly
         profile._median_noise_frame = median_noise_frame
         profile._mean_noise_frame = mean_noise_frame
+        
+        # If there were any warnings, raise them with the profile
+        if warnings:
+            raise ProfileMismatchWarning(warnings, profile)
+        
         return profile
 
     def to_dict(self):
@@ -304,6 +371,8 @@ class HotPixelProfile:
             'mean_noise_path': self.mean_noise_path,
             'mean_values': self.mean_values,
             'hot_pixel_counts': self.hot_pixel_counts,
+            'frame_channel_means': self.frame_channel_means,
+            'frame_temperatures': self.frame_temperatures,
         }
         return data
 

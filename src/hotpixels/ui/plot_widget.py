@@ -36,11 +36,11 @@ class PlotWidget(QWidget):
         if not profile.common_statistics:
             return
 
-        # Create a 2x2 grid layout with optimized spacing for legends
-        gs = gridspec.GridSpec(2, 2, figure=self.figure,
-                               height_ratios=[1.2, 1],
+        # Create a 3x2 grid layout with optimized spacing for legends
+        gs = gridspec.GridSpec(3, 2, figure=self.figure,
+                               height_ratios=[1.2, 1, 1],
                                hspace=0.6, wspace=0.25,
-                               top=0.94, bottom=0.12)
+                               top=0.94, bottom=0.08)
 
         # Top row: Pie charts
         ax_pie1 = self.figure.add_subplot(gs[0, 0])
@@ -100,12 +100,64 @@ class PlotWidget(QWidget):
         ax_bar1.set_ylabel('Hot Pixel Count')
         ax_bar1.grid(True, alpha=0.3)
 
-        # Bar chart 2: Mean values per frame
-        ax_bar2.bar(frame_numbers, mean_values, alpha=0.7, color='blue')
-        ax_bar2.set_title('Mean Pixel Value per Frame')
+        # Bar chart 2: Mean values per frame (by color channel if available)
+        if profile.frame_channel_means and len(profile.frame_channel_means) > 0 and profile.frame_channel_means[0]:
+            # We have per-channel data - create grouped bars
+            bar_width = 0.25
+            
+            # Extract channel data
+            r_values = [frame_means.get('R', 0) for frame_means in profile.frame_channel_means]
+            g_values = [frame_means.get('G', 0) for frame_means in profile.frame_channel_means]
+            b_values = [frame_means.get('B', 0) for frame_means in profile.frame_channel_means]
+            
+            # Calculate bar positions
+            r_positions = [x - bar_width for x in frame_numbers]
+            g_positions = frame_numbers
+            b_positions = [x + bar_width for x in frame_numbers]
+            
+            # Plot bars for each channel
+            if any(r_values):
+                ax_bar2.bar(r_positions, r_values, width=bar_width, alpha=0.7, color='red', label='Red')
+            if any(g_values):
+                ax_bar2.bar(g_positions, g_values, width=bar_width, alpha=0.7, color='green', label='Green')
+            if any(b_values):
+                ax_bar2.bar(b_positions, b_values, width=bar_width, alpha=0.7, color='blue', label='Blue')
+            
+            ax_bar2.set_title('Mean Pixel Value per Frame (By Channel)')
+            ax_bar2.legend()
+        else:
+            # Fallback to overall mean values for older profiles
+            ax_bar2.bar(frame_numbers, mean_values, alpha=0.7, color='blue')
+            ax_bar2.set_title('Mean Pixel Value per Frame')
+        
         ax_bar2.set_xlabel('Frame Number')
         ax_bar2.set_ylabel('Mean Value')
         ax_bar2.grid(True, alpha=0.3)
+
+        # Third row: Temperature plot (if available)
+        if profile.frame_temperatures and any(t is not None for t in profile.frame_temperatures):
+            ax_temp = self.figure.add_subplot(gs[2, :])
+            
+            # Filter out None values
+            valid_temps = [(i+1, temp) for i, temp in enumerate(profile.frame_temperatures) if temp is not None]
+            if valid_temps:
+                temp_frame_numbers, temperatures = zip(*valid_temps)
+                ax_temp.plot(temp_frame_numbers, temperatures, 'o-', color='purple', linewidth=2, markersize=6)
+                ax_temp.set_title('Sensor Temperature per Frame')
+                ax_temp.set_xlabel('Frame Number')
+                ax_temp.set_ylabel('Temperature (°C)')
+                ax_temp.grid(True, alpha=0.3)
+                
+                # Add temperature statistics
+                mean_temp = np.mean(temperatures)
+                std_temp = np.std(temperatures)
+                min_temp = min(temperatures)
+                max_temp = max(temperatures)
+                temp_range = max_temp - min_temp
+                
+                stats_text = f'Mean: {mean_temp:.1f}°C\nStd: {std_temp:.2f}°C\nRange: {temp_range:.1f}°C'
+                ax_temp.text(0.02, 0.98, stats_text, transform=ax_temp.transAxes, fontsize=9,
+                            verticalalignment='top', bbox=dict(boxstyle='round', facecolor='white', alpha=0.8))
 
         self.canvas.draw()
         print("Debug: Unified hot pixel analysis plotted in", time.time() - startTime, "seconds")

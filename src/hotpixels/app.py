@@ -272,7 +272,7 @@ class App:
             profile_temp = profile['sensor_temperature']
             if image_temperature is not None and profile_temp is not None:
                 temp_diff = abs(image_temperature - profile_temp) / max(abs(image_temperature), abs(profile_temp), 1.0)
-                if temp_diff > 0.10:  # More than 10% different
+                if temp_diff > 0.20:  # More than 20% different
                     continue  # Skip this profile
                 score += temp_diff
             
