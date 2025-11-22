@@ -94,7 +94,7 @@ class HotPixelGUI(QMainWindow):
         self.library_tab.set_main_window(self)
         
         self.ui.tabWidget.addTab(self.library_tab, "Profile Library")
-        self.ui.tabWidget.addTab(self.profile_tab, "Create Profile")
+        self.ui.tabWidget.addTab(self.profile_tab, "Profile Details")
         self.ui.tabWidget.addTab(self.correction_tab, "Correct Images")
         
         # Default to Profile Library tab

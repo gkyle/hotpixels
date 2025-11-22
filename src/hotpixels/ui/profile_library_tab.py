@@ -6,7 +6,7 @@ from datetime import datetime as dt
 from typing import TYPE_CHECKING, Optional
 
 from PySide6.QtWidgets import (
-    QWidget, QVBoxLayout, QTableWidgetItem
+    QWidget, QVBoxLayout, QTableWidgetItem, QPushButton, QHBoxLayout
 )
 from PySide6.QtCore import Qt
 from PySide6 import QtCore, QtUiTools
@@ -76,17 +76,15 @@ class ProfileLibraryTab(QWidget):
         self.ui.refreshButton.clicked.connect(self.refresh_profiles)
         self.ui.filterLineEdit.textChanged.connect(self.filter_profiles)
         self.ui.profileTableWidget.itemSelectionChanged.connect(self.on_profile_selection_changed)
-        self.ui.deleteProfileButton.clicked.connect(self.delete_selected_profile)
 
     def setup_table(self):
         """Set up the profile table widget"""
         table = self.ui.profileTableWidget
 
-        # Set column count
-        table.setColumnCount(8)
+        table.setColumnCount(9)
 
         # Set column headers
-        headers = ["Camera ID", "Make", "Model", "Device ID", "Shutter Speed", "ISO", "Temperature", "Date Created"]
+        headers = ["Camera ID", "Make", "Model", "Device ID", "Shutter Speed", "ISO", "Temperature", "Date Created", ""]
         table.setHorizontalHeaderLabels(headers)
 
         # Set column widths
@@ -99,6 +97,8 @@ class ProfileLibraryTab(QWidget):
         header.setSectionResizeMode(5, HeaderView.ResizeToContents)  # ISO
         header.setSectionResizeMode(6, HeaderView.ResizeToContents)  # Temperature
         header.setSectionResizeMode(7, HeaderView.ResizeToContents)  # Date Created
+        header.setSectionResizeMode(8, HeaderView.Fixed)  # Delete button
+        table.setColumnWidth(8, 30)  # Fixed width for delete button
 
         # Enable sorting
         table.setSortingEnabled(True)
@@ -223,6 +223,27 @@ class ProfileLibraryTab(QWidget):
 
             # Store the file path as user data for easy access
             table.item(row, 0).setData(Qt.UserRole, profile_info['file_path'])
+            
+            # Add delete button in a centered container
+            delete_btn = QPushButton("✕")
+            delete_btn.setFixedSize(25, 25)
+            delete_btn.setStyleSheet("QPushButton { color: red; font-weight: bold; padding: 0px; margin: 0px; }")
+            delete_btn.setToolTip("Delete this profile")
+            delete_btn.clicked.connect(lambda checked, path=profile_info['file_path']: self.delete_profile(path))
+            
+            # Center the button in a container widget
+            container = QWidget()
+            container_layout = QHBoxLayout(container)
+            container_layout.addWidget(delete_btn)
+            container_layout.setAlignment(Qt.AlignCenter)
+            container_layout.setContentsMargins(0, 0, 0, 0)
+            container_layout.setSpacing(0)
+            container.setFixedWidth(30)
+            
+            table.setCellWidget(row, 8, container)
+        
+        # Re-apply column width after all widgets are set
+        table.setColumnWidth(8, 30)
 
     def filter_profiles(self, filter_text):
         """Filter the profiles based on the filter text"""
@@ -272,7 +293,6 @@ class ProfileLibraryTab(QWidget):
 
             if profile_info:
                 self.display_profile_summary(profile_info['profile'])
-                self.ui.deleteProfileButton.setEnabled(True)
                 
                 # Automatically load the selected profile
                 if self.main_window:
@@ -280,7 +300,6 @@ class ProfileLibraryTab(QWidget):
         else:
             self.selected_profile_path = None
             self.clear_profile_summary()
-            self.ui.deleteProfileButton.setEnabled(False)
 
     def display_profile_summary(self, profile: HotPixelProfile):
         """Display the profile summary in the summary area"""
@@ -318,12 +337,12 @@ class ProfileLibraryTab(QWidget):
         # If not found, clear selection
         table.clearSelection()
 
-    def delete_selected_profile(self):
-        """Delete the selected profile from disk with confirmation"""
-        if not self.selected_profile_path:
+    def delete_profile(self, profile_path):
+        """Delete a profile from disk with confirmation"""
+        if not profile_path:
             return
 
-        file_name = Path(self.selected_profile_path).name
+        file_name = Path(profile_path).name
 
         # Ask for confirmation
         reply = MsgBox.question(
@@ -336,7 +355,7 @@ class ProfileLibraryTab(QWidget):
 
         if reply == MsgBox.Yes:
             try:
-                os.remove(self.selected_profile_path)
+                os.remove(profile_path)
                 self.showStatusMessage(f"Profile deleted: {file_name}", 3000)
                 # Refresh the library to update the display
                 self.refresh_profiles()

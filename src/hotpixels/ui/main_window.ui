@@ -14,7 +14,22 @@
    <string>Hot Pixel Analysis Tool</string>
   </property>
   <widget class="QWidget" name="centralwidget">
+   <property name="styleSheet">
+    <string notr="true"/>
+   </property>
    <layout class="QVBoxLayout" name="verticalLayout">
+    <property name="leftMargin">
+     <number>2</number>
+    </property>
+    <property name="topMargin">
+     <number>2</number>
+    </property>
+    <property name="rightMargin">
+     <number>2</number>
+    </property>
+    <property name="bottomMargin">
+     <number>2</number>
+    </property>
     <item>
      <widget class="QTabWidget" name="tabWidget">
       <property name="currentIndex">
@@ -27,7 +42,7 @@
       </widget>
       <widget class="QWidget" name="profileTab">
        <attribute name="title">
-        <string>Create Profile</string>
+        <string>Profile Details</string>
        </attribute>
       </widget>
       <widget class="QWidget" name="correctionTab">

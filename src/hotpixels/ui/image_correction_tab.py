@@ -52,6 +52,7 @@ class ImageCorrectionTab(QWidget):
         self.cached_cnn_detections: List[Tuple[int, int, float]] = []  # CNN results with confidence
         self.cached_preview_image: Optional[DNGImage] = None  # Current preview with corrections applied
         self.cached_corrected_raw: Optional[DNGImage] = None  # Cached corrected raw image for batch mode ROI display
+        self.cnn_has_been_run: bool = False  # Track if CNN detection has been run for current image
         
         # Current correction parameters
         self.current_deviation_threshold: Optional[float] = None  # From profile by default
@@ -287,6 +288,13 @@ class ImageCorrectionTab(QWidget):
         """Start interactive preview mode for single image."""
         self.showStatusMessage("Computing corrections preview...", 0)
         
+        # Show progress bar for all operations
+        if hasattr(self, 'correction_progress_bar'):
+            self.correction_progress_bar.setVisible(True)
+            self.correction_progress_bar.setValue(0)
+            self.correction_progress_bar.setMaximum(100)
+            self.correction_progress_bar.setFormat("Starting...")
+        
         # Cache the original image
         self.cached_original_raw = self._copy_dng_image(self.rawImages[0])
         
@@ -320,6 +328,10 @@ class ImageCorrectionTab(QWidget):
             self.cnn_detection_worker.start()
         else:
             # No CNN detection needed, proceed immediately
+            if hasattr(self, 'correction_progress_bar'):
+                self.correction_progress_bar.setValue(50)
+                self.correction_progress_bar.setFormat("Applying corrections...")
+            
             self.cached_cnn_detections = []
             self._finish_interactive_preview()
     
@@ -338,6 +350,7 @@ class ImageCorrectionTab(QWidget):
         """Handle CNN detection completion"""
         self.cached_cnn_detections = detections
         self.cnn_detection_worker = None
+        self.cnn_has_been_run = True
         
         self._finish_interactive_preview()
     
@@ -354,6 +367,12 @@ class ImageCorrectionTab(QWidget):
         """Complete the interactive preview setup after CNN detection (if enabled)."""
         # Compute initial preview
         self.recompute_preview()
+        
+        # Complete progress bar
+        if hasattr(self, 'correction_progress_bar'):
+            self.correction_progress_bar.setMaximum(100)
+            self.correction_progress_bar.setValue(100)
+            self.correction_progress_bar.setFormat("Complete")
         
         # Update UI for interactive mode - check_ready_state will handle button enabling
         self.check_ready_state()  # Update button states
@@ -435,8 +454,9 @@ class ImageCorrectionTab(QWidget):
         
         # Complete the progress bar to 100% and keep it visible
         if hasattr(self, 'correction_progress_bar'):
-            self.correction_progress_bar.setValue(self.correction_progress_bar.maximum())
-            self.correction_progress_bar.setFormat("100% - Complete")
+            self.correction_progress_bar.setMaximum(100)
+            self.correction_progress_bar.setValue(100)
+            self.correction_progress_bar.setFormat("Complete")
 
         hot_pixels = self.app.get_hot_pixels(self.app.current_profile)
         subtract_noise = hasattr(
@@ -638,6 +658,7 @@ class ImageCorrectionTab(QWidget):
         self.cached_original_raw = None
         self.cached_cnn_detections = []
         self.cached_preview_image = None
+        self.cnn_has_been_run = False
         self.cached_corrected_raw = None
         
         # Disable and uncheck the "Show corrected image" checkbox since we don't have corrected images
@@ -905,8 +926,11 @@ class ImageCorrectionTab(QWidget):
         # Always show Correct Image button when images are loaded (for parameter testing)
         self.ui.correctImageButton.setVisible(has_paths)
         
-        # Enable Correct Image button if ready and not already corrected
-        self.ui.correctImageButton.setEnabled(ready and self.cached_preview_image is None)
+        # Enable Correct Image button if ready and:
+        # - No corrections have been done yet (cached_preview_image is None), OR
+        # - CNN is enabled but hasn't been run yet (need to run CNN detection)
+        needs_cnn = self.correct_cnn_hotpixels_enabled and not self.cnn_has_been_run and self.cached_original_raw is not None
+        self.ui.correctImageButton.setEnabled(ready and (self.cached_preview_image is None or needs_cnn))
         
         # Determine which button to highlight based on context
         if not has_paths:
@@ -1145,8 +1169,15 @@ class ImageCorrectionTab(QWidget):
         """Handle CNN correction checkbox toggle."""
         self.correct_cnn_hotpixels_enabled = checked
         
-        # Recompute preview if in interactive mode
-        if self.cached_original_raw:
+        # If enabling CNN for the first time, trigger CNN detection
+        if checked and self.cached_original_raw and not self.cnn_has_been_run:
+            # Update button states to enable Correct Image button
+            self.check_ready_state()
+            # Automatically click the Correct Image button to run CNN
+            if self.ui.correctImageButton.isEnabled():
+                self.start_interactive_correction()
+        # Recompute preview if in interactive mode and CNN has already been run
+        elif self.cached_original_raw:
             self.recompute_preview()
         else:
             self.check_ready_state()
