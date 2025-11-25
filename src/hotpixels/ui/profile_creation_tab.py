@@ -33,8 +33,7 @@ class ProfileCreationTab(QWidget):
         self.rendered_tabs = {
             'statistics': False,
             'hot_pixel_map': False,
-            'dark_frame_histogram': False,
-            'deviation_threshold': False
+            'dark_frame_histogram': False
         }
         self.load_ui()
         self.setup_connections()
@@ -163,16 +162,15 @@ class ProfileCreationTab(QWidget):
         map_layout.addWidget(self.map_plot_widget)
         self.ui.mapWidget.setLayout(map_layout)
 
-        self.deviation_plot_widget = PlotWidget(self.app)
-        deviation_layout = QVBoxLayout()
-        deviation_layout.addWidget(self.deviation_plot_widget)
-        self.ui.deviationWidget.setLayout(deviation_layout)
+        self.dark_frame_plot_widget = PlotWidget(self.app)
+        dark_frame_layout = QVBoxLayout()
+        dark_frame_layout.addWidget(self.dark_frame_plot_widget)
+        self.ui.darkFrameWidget.setLayout(dark_frame_layout)
 
         # Set the scroll area widgets
         self.ui.plotScrollArea.setWidget(self.ui.plotWidget)
         self.ui.mapScrollArea.setWidget(self.ui.mapWidget)
         self.ui.darkFrameScrollArea.setWidget(self.ui.darkFrameWidget)
-        self.ui.deviationScrollArea.setWidget(self.ui.deviationWidget)
 
         # Configure splitter proportions (33% for statistics, 67% for plots)
         self.setup_splitter_proportions()
@@ -384,10 +382,10 @@ class ProfileCreationTab(QWidget):
             if not self.rendered_tabs['hot_pixel_map']:
                 self.plot_hot_pixel_map()
                 self.rendered_tabs['hot_pixel_map'] = True
-        elif index == 2:  # Hot Pixel Deviation tab
-            if not self.rendered_tabs['deviation_threshold']:
-                self.plot_deviation_threshold_comparison()
-                self.rendered_tabs['deviation_threshold'] = True
+        elif index == 2:  # Dark Frame Profile tab
+            if not self.rendered_tabs['dark_frame_histogram']:
+                self.plot_dark_frame_histogram()
+                self.rendered_tabs['dark_frame_histogram'] = True
 
     def plot_statistics(self):
         if self.app.current_profile:
@@ -397,16 +395,16 @@ class ProfileCreationTab(QWidget):
         if self.app.current_profile:
             self.map_plot_widget.plot_hot_pixel_map(self.app.current_profile)
 
-    def plot_deviation_threshold_comparison(self):
-        if self.app.current_profile and hasattr(self.app.current_profile, 'deviation_threshold_comparisons'):
-            self.deviation_plot_widget.plot_deviation_threshold_comparison(self.app.current_profile.deviation_threshold_comparisons)
+    def plot_dark_frame_histogram(self):
+        if self.app.current_profile:
+            self.dark_frame_plot_widget.plot_dark_frame_histogram(self.app.current_profile)
 
     def reset_rendered_tabs(self):
         """Reset lazy rendering flags when a new profile is loaded"""
         self.rendered_tabs = {
             'statistics': False,
             'hot_pixel_map': False,
-            'deviation_threshold': False
+            'dark_frame_histogram': False
         }
 
     def save_profile(self):
@@ -441,6 +439,9 @@ class ProfileCreationTab(QWidget):
                     self._copy_dng_files_to_profile_directory(filename)
 
                 self.app.current_profile.save_to_file(filename)
+
+                # Set as currently selected profile
+                self.app.current_profile_path = filename
 
                 # Save the successfully saved profile path to preferences
                 if self.main_window and hasattr(self.main_window, 'preferences'):
@@ -516,7 +517,6 @@ class ProfileCreationTab(QWidget):
         # Parse and format date from camera metadata
         try:
             if cam.date_created:
-                print(f"Debug: Original date_created value: '{cam.date_created}'")
 
                 # Try multiple date formats commonly used by cameras
                 from datetime import datetime
@@ -533,29 +533,23 @@ class ProfileCreationTab(QWidget):
                 for fmt in date_formats:
                     try:
                         date_obj = datetime.strptime(cam.date_created, fmt)
-                        print(f"Debug: Successfully parsed date with format: {fmt}")
                         break
                     except ValueError:
                         continue
 
                 if date_obj:
                     date_str = date_obj.strftime("%Y%m%d")
-                    print(f"Debug: Formatted date as: {date_str}")
                 else:
                     # Try ISO format parsing as fallback
                     try:
                         date_obj = datetime.fromisoformat(cam.date_created.replace('Z', '+00:00'))
                         date_str = date_obj.strftime("%Y%m%d")
-                        print(f"Debug: Parsed with fromisoformat: {date_str}")
                     except:
                         date_str = "unknown_date"
-                        print(f"Debug: All date parsing failed, using: {date_str}")
             else:
                 date_str = "unknown_date"
-                print("Debug: No date_created field found")
         except Exception as e:
             date_str = "unknown_date"
-            print(f"Debug: Date parsing exception: {e}")
 
         # Construct filename: camera_id_shutter_iso_date.json
         filename = f"{camera_id}_{shutter}_{iso}_{date_str}.json"

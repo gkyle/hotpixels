@@ -1,7 +1,3 @@
-"""
-UI components for the Hot Pixel Analysis GUI application.
-"""
-
 from .image_graphics_view import ImageGraphicsView
 from .workers import (
     AnalysisWorker,

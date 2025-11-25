@@ -14,6 +14,7 @@ from hotpixels.hot_pixel_segmentation_cnn import HotPixelSegmentationCNN
 class App:
     def __init__(self):
         self.current_profile: HotPixelProfile = None
+        self.current_profile_path: str = None
         self.profiles_directory = Path("./profiles")
         self.gpuInfo = GPUInfo()
     
@@ -53,15 +54,28 @@ class App:
         dng_image.correct_hot_pixels(hot_pixels)
         return hot_pixels
 
-    def detect_residual_hotpixels_cnn(self, dng_image: DNGImage, batch_size: int = 32, progress_callback=None) -> List[Tuple[int, int, float]]:
+    def detect_residual_hotpixels_cnn(self, dng_image: DNGImage, batch_size: int = None, progress_callback=None) -> List[Tuple[int, int, float]]:
         """Detect residual hot pixels using CNN model"""
 
         # Create model and load trained weights
-        device = self.gpuInfo.getGpuNames()[0][0] if self.gpuInfo.getGpuPresent() else 'cpu'
+        use_gpu = self.gpuInfo.getGpuPresent()
+        device = self.gpuInfo.getGpuNames()[0][0] if use_gpu else 'cpu'
+        
+        # Adaptive batch size: CPU benefits from larger batches for this workload
+        if batch_size is None:
+            batch_size = 32 if use_gpu else 16  # 16 on CPU for good speed/memory balance
+        
+        # CPU optimizations
+        if not use_gpu:
+            # Set thread count for optimal CPU performance
+            torch.set_num_threads(torch.get_num_threads())
+            torch.set_grad_enabled(False)
+        
         model = HotPixelSegmentationCNN().to(device)
         
-        # Load trained weights
-        checkpoint = torch.load('./models/hotpixel_cnn_syn_fp16.pt', map_location=device)
+        # Load appropriate model: FP32 for CPU, FP16 for GPU
+        model_path = './models/hotpixel_cnn_syn_fp32.pt' if not use_gpu else './models/hotpixel_cnn_syn_fp16.pt'
+        checkpoint = torch.load(model_path, map_location=device)
         model.load_state_dict(checkpoint['model_state_dict'])
         model.eval()
 
@@ -177,6 +191,7 @@ class App:
         try:
             profile = HotPixelProfile.load_from_file(profile_path)
             self.current_profile = profile
+            self.current_profile_path = profile_path
             return profile
         except Exception as e:
             print(f"Failed to load profile from {profile_path}: {e}")

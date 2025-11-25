@@ -29,7 +29,7 @@ def main(profile_path=None, image_paths=None, darkframes_paths=None):
 
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description='Hot Pixel Analysis GUI')
+    parser = argparse.ArgumentParser(description='HotPixels')
     parser.add_argument('--profile', type=str, help='Path to a profile JSON file to load at startup')
     parser.add_argument('--image', type=str, nargs='+', help='Paths to image files to load at startup')
     parser.add_argument('--darkframes', type=str, nargs='+', help='Paths to dark frame files to load at startup')

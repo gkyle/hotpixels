@@ -178,6 +178,8 @@ class DNGImage(Image):
 
         corrected_img = self.raw_img.astype(np.int32) - norm_dark_noise_frame.astype(np.int32)
         corrected_img = np.clip(corrected_img, 0, 65535).astype(np.uint16)
+
+        self.raw_img = corrected_img
         return corrected_img
 
     def correct_hot_pixels(self, hot_pixels, radius=4):

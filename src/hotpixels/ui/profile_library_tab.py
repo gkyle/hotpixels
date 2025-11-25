@@ -102,11 +102,27 @@ class ProfileLibraryTab(QWidget):
 
         # Enable sorting
         table.setSortingEnabled(True)
+        
+        # Set selection styling for better visibility
+        table.setStyleSheet("""
+            QTableWidget::item:selected {
+                background-color: #0078D4;
+                color: white;
+            }
+            QTableWidget::item:selected:focus {
+                background-color: #0078D4;
+                color: white;
+            }
+        """)
     
     def showEvent(self, event):
-        """Called when the tab becomes visible - update profile summary immediately"""
+        """Called when the tab becomes visible - update profile summary and highlight current profile"""
         super().showEvent(event)
         self.update_profile_summary()
+        
+        # Highlight the current profile if one is loaded
+        if self.main_window and self.main_window.app.current_profile_path:
+            self.select_profile_by_path(self.main_window.app.current_profile_path)
     
     def update_profile_summary(self):
         """Update the profile summary display with the current profile"""

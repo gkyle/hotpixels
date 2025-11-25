@@ -665,6 +665,10 @@ class ImageCorrectionTab(QWidget):
         if hasattr(self.ui, 'showCorrectedImageCheckBox'):
             self.ui.showCorrectedImageCheckBox.setEnabled(False)
             self.ui.showCorrectedImageCheckBox.setChecked(False)
+        
+        # Enable RGB checkbox now that images are loaded
+        if hasattr(self.ui, 'showRgbImageCheckBox'):
+            self.ui.showRgbImageCheckBox.setEnabled(True)
             
         # Disable and uncheck hot pixel visualization checkboxes
         if hasattr(self.ui, 'showDarkFrameHotpixelsCheckBox'):

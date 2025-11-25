@@ -431,6 +431,12 @@
                   </property>
                   <item>
                    <widget class="QLabel" name="label_2">
+                    <property name="minimumSize">
+                     <size>
+                      <width>0</width>
+                      <height>16</height>
+                     </size>
+                    </property>
                     <property name="text">
                      <string>Deviation Threshold</string>
                     </property>
@@ -516,6 +522,12 @@
                   </property>
                   <item>
                    <widget class="QLabel" name="label">
+                    <property name="minimumSize">
+                     <size>
+                      <width>2</width>
+                      <height>16</height>
+                     </size>
+                    </property>
                     <property name="text">
                      <string>Sensitivity</string>
                     </property>

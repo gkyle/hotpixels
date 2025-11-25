@@ -1,5 +1,3 @@
-"""Main application window for the Hot Pixel Analysis GUI."""
-
 from pathlib import Path
 from typing import List, Optional
 

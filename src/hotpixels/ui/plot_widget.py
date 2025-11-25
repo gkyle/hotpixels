@@ -48,7 +48,6 @@ class PlotWidget(QWidget):
 
         # Calculate fraction of hot pixels
         hot_pixel_fraction = profile.common_statistics.fraction_hot_pixels
-        print("Debug:", "hot pixel fraction:", hot_pixel_fraction)
         normal_pixel_fraction = 1.0 - hot_pixel_fraction
 
         # Pie chart 1: Mean fraction of hot pixels
@@ -160,7 +159,6 @@ class PlotWidget(QWidget):
                             verticalalignment='top', bbox=dict(boxstyle='round', facecolor='white', alpha=0.8))
 
         self.canvas.draw()
-        print("Debug: Unified hot pixel analysis plotted in", time.time() - startTime, "seconds")
 
     def plot_hot_pixel_statistics(self, profile: HotPixelProfile):
         """Legacy method - redirect to unified plot"""
@@ -236,7 +234,6 @@ class PlotWidget(QWidget):
 
         self.figure.tight_layout()
         self.canvas.draw()
-        print("Debug: Hot pixel map plotted in", time.time() - startTime, "seconds")
 
     def plot_dark_frame_histogram(self, profile: HotPixelProfile):
         """Plot histogram of dark frame profile values"""
@@ -315,6 +312,16 @@ class PlotWidget(QWidget):
         std_val = np.std(noise_data)
         min_val = np.min(noise_data)
         max_val = np.max(noise_data)
+
+        # Add deviation threshold line if available
+        if profile.deviation_threshold is not None and profile.deviation_threshold > 0:
+            threshold_value = mean_val + profile.deviation_threshold * std_val
+            
+            # Only draw the line if it's within the visible range
+            if data_min <= threshold_value <= data_max:
+                ax.axvline(x=threshold_value, color='red', linestyle='--', linewidth=2, 
+                          label=f'Deviation Threshold ({profile.deviation_threshold}σ)', alpha=0.8)
+                ax.legend(loc='upper right')
 
         stats_text = f'Mean: {mean_val:.1f}\nStd: {std_val:.1f}\nMin: {min_val}\nMax: {max_val}'
         ax.text(0.02, 0.98, stats_text, transform=ax.transAxes, fontsize=10,
