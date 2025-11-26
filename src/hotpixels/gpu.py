@@ -1,7 +1,8 @@
 import torch
 import pynvml
 import psutil
-from typing import List, Tuple
+from typing import Tuple
+
 
 class GPUInfo:
 
@@ -29,7 +30,7 @@ class GPUInfo:
             self.useNVML = False
             self.nvmlHandle = None
 
-    def getGpuNames(self):
+    def get_gpu_names(self):
         try:
             if self.mpsAvailable:
                 return [["mps", "Apple Silicon GPU (MPS)"]]
@@ -42,47 +43,47 @@ class GPUInfo:
             pass
         return []
 
-    def getGpuPresent(self):
+    def get_gpu_present(self):
         return self.cudaAvailable or self.mpsAvailable
 
-    def getGpuMemory(self) -> Tuple[float, float]:  # Return (total GB, available GB)
+    def get_gpu_memory(self) -> Tuple[float, float]:  # Return (total GB, available GB)
         try:
             if self.mpsAvailable:
                 total_bytes = psutil.virtual_memory().total
                 free_bytes = psutil.virtual_memory().available
-                return float(toGB(total_bytes)), float(toGB(free_bytes))
+                return float(to_gb(total_bytes)), float(to_gb(free_bytes))
             if self.cudaAvailable:
                 free_bytes, total_bytes = torch.cuda.mem_get_info()
-                return float(toGB(total_bytes)), float(toGB(free_bytes))
+                return float(to_gb(total_bytes)), float(to_gb(free_bytes))
         except Exception as e:
             pass
         return None
     
-    def getGpuMemeoryTotal(self) -> float:
+    def get_gpu_memory_total(self) -> float:
         try:
             if self.mpsAvailable:
                 total_bytes = psutil.virtual_memory().total
-                return float(toGB(total_bytes))
+                return float(to_gb(total_bytes))
             if self.cudaAvailable:
                 free_bytes, total_bytes = torch.cuda.mem_get_info()
-                return float(toGB(total_bytes))
+                return float(to_gb(total_bytes))
         except Exception as e:
             pass
         return None
     
-    def getGpuMemoryAvailable(self) -> float:
+    def get_gpu_memory_available(self) -> float:
         try:
             if self.mpsAvailable:
                 free_bytes = psutil.virtual_memory().available
-                return float(toGB(free_bytes))
+                return float(to_gb(free_bytes))
             if self.cudaAvailable:
                 free_bytes, total_bytes = torch.cuda.mem_get_info()
-                return float(toGB(free_bytes))
+                return float(to_gb(free_bytes))
         except Exception as e:
             pass
         return None
 
-    def getGpuUtilization(self) -> float:
+    def get_gpu_utilization(self) -> float:
         try:
             if self.mpsAvailable:
                 return None
@@ -93,5 +94,6 @@ class GPUInfo:
             pass
         return None
 
-def toGB(bytes):
-    return bytes / (1024 * 1024 * 1024)
+
+def to_gb(bytes):
+    return bytes / (1024 ** 3)

@@ -58,8 +58,8 @@ class App:
         """Detect residual hot pixels using CNN model"""
 
         # Create model and load trained weights
-        use_gpu = self.gpuInfo.getGpuPresent()
-        device = self.gpuInfo.getGpuNames()[0][0] if use_gpu else 'cpu'
+        use_gpu = self.gpuInfo.get_gpu_present()
+        device = self.gpuInfo.get_gpu_names()[0][0] if use_gpu else 'cpu'
         
         # Adaptive batch size: CPU benefits from larger batches for this workload
         if batch_size is None:
@@ -151,7 +151,6 @@ class App:
                 print(f"Processed {batch_end}/{total_tiles} tiles...")
 
         print(f"\nProcessed {total_tiles} tiles total")
-        print(f"Output mask shape: {output_mask.shape}")
 
         # Convert output mask to numpy and extract all detections with their confidence values
         output_mask_np = output_mask.numpy()

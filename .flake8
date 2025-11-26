@@ -2,9 +2,11 @@
 max-line-length = 120
 extend-ignore = E203,W503,W293,W291,E501,E722,F841,E128,E129
 per-file-ignores =
-    __init__.py:F401
-    */ui/*:N802,N805,N806,N815,N816
-    setup/lrcPath.py:N816
+    # Qt framework method overrides (setPixmap, mouseMoveEvent, wheelEvent, showEvent) must use camelCase
+    # These are not coding standard violations - they override Qt framework methods
+    src/hotpixels/ui/image_graphics_view.py:N802
+    src/hotpixels/ui/profile_creation_tab.py:N802
+    src/hotpixels/ui/profile_library_tab.py:N802
 exclude =
     .git,
     __pycache__,

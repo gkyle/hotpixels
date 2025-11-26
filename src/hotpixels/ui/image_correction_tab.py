@@ -16,11 +16,9 @@ from PySide6.QtWidgets import (
 from PySide6.QtCore import Qt, QTimer
 from PySide6.QtGui import QImage, QPixmap
 from PySide6.QtUiTools import QUiLoader
-from PySide6.QtWidgets import QMessageBox
 from PySide6.QtWidgets import QListWidgetItem as ListItem
 
 from hotpixels.app import App
-from hotpixels.profile import HotPixelProfile
 from hotpixels.image import DNGImage
 from .workers import CorrectionWorker, MultiImageLoadingWorker, TrainingDataWorker, CNNDetectionWorker
 from .image_graphics_view import ImageGraphicsView
@@ -138,10 +136,10 @@ class ImageCorrectionTab(QWidget):
                 layout.addWidget(self.image_view, 1)  # Add stretch factor of 1
                 
                 # Connect mouse movement signal for ROI display
-                self.image_view.mouseMoved.connect(self.on_image_mouse_moved)
+                self.image_view.mouse_moved.connect(self.on_image_mouse_moved)
                 
                 # Show initial message
-                self.image_view.showMessage("No image loaded")
+                self.image_view.show_message("No image loaded")
                 
                 # Store reference as originalImageLabel for compatibility
                 self.ui.originalImageLabel = self.image_view
@@ -247,7 +245,7 @@ class ImageCorrectionTab(QWidget):
             corrected_filename = filename.replace(ext, suffix + ext)
             
             self.cached_preview_image.save(corrected_filename)
-            self.showStatusMessage(f"Saved: {os.path.basename(corrected_filename)}", 3000)
+            self.show_status_message(f"Saved: {os.path.basename(corrected_filename)}", 3000)
             
         except Exception as e:
             QMessageBox.critical(self, "Save Error", f"Failed to save corrected image:\n{str(e)}")
@@ -263,14 +261,14 @@ class ImageCorrectionTab(QWidget):
             # Open the directory containing the first corrected image
             folder_path = os.path.dirname(self.corrected_image_paths[0])
             os.startfile(folder_path)
-            self.showStatusMessage(f"Opened folder: {folder_path}", 3000)
+            self.show_status_message(f"Opened folder: {folder_path}", 3000)
         except Exception as e:
             QMessageBox.critical(self, "Open Folder Error", f"Failed to open folder:\n{str(e)}")
             tb.print_exc()
     
     def _start_interactive_preview(self):
         """Start interactive preview mode for single image."""
-        self.showStatusMessage("Computing corrections preview...", 0)
+        self.show_status_message("Computing corrections preview...", 0)
         
         # Show progress bar for all operations
         if hasattr(self, 'correction_progress_bar'):
@@ -321,7 +319,7 @@ class ImageCorrectionTab(QWidget):
     
     def on_cnn_detection_progress(self, message: str):
         """Handle CNN detection progress updates"""
-        self.showStatusMessage(message, 0)
+        self.show_status_message(message, 0)
     
     def on_cnn_detection_detailed_progress(self, current: int, total: int, message: str):
         """Handle detailed CNN detection progress updates"""
@@ -382,9 +380,9 @@ class ImageCorrectionTab(QWidget):
         if hasattr(self.ui, 'label'):
             self.ui.label.setText(f"Sensitivity: {self.current_sensitivity:.2f} ({self.cnn_hotpixel_count} pixels)")
         
-        self.showStatusMessage("Preview ready! Adjust parameters to see changes.", 5000)
+        self.show_status_message("Preview ready! Adjust parameters to see changes.", 5000)
         
-        self.showStatusMessage("Preview ready! Adjust parameters to see changes.", 5000)
+        self.show_status_message("Preview ready! Adjust parameters to see changes.", 5000)
     
     def _start_batch_correction(self):
         """Start batch correction mode for multiple images."""
@@ -474,19 +472,19 @@ class ImageCorrectionTab(QWidget):
         # Re-enable buttons
         self.check_ready_state()
         
-        self.showStatusMessage(
+        self.show_status_message(
             f"Successfully corrected {len(corrected_paths)} image{'s' if len(corrected_paths) > 1 else ''}")
 
-    def statusBar(self):
+    def status_bar(self):
         """Get the status bar from the parent main window"""
         main_window = self.window()  # Get the top-level window
         if hasattr(main_window, 'statusBar'):
             return main_window.statusBar()
         return None
 
-    def showStatusMessage(self, message: str, timeout: int = 5000):
+    def show_status_message(self, message: str, timeout: int = 5000):
         """Show a message in the status bar with optional timeout"""
-        status_bar = self.statusBar()
+        status_bar = self.status_bar()
         if status_bar:
             status_bar.showMessage(message, timeout)
 
@@ -527,7 +525,7 @@ class ImageCorrectionTab(QWidget):
             return
         
         # Process each image pair
-        self.showStatusMessage("Capturing training data...", 0)
+        self.show_status_message("Capturing training data...", 0)
         
         # Disable button during processing
         self.ui.saveTrainingDataButton.setEnabled(False)
@@ -537,7 +535,7 @@ class ImageCorrectionTab(QWidget):
         
         try:
             for i, (uncorrected_path, corrected_path) in enumerate(zip(self.image_paths, self.corrected_image_paths)):
-                self.showStatusMessage(f"Capturing training data from image {i+1}/{len(self.image_paths)}...", 0)
+                self.show_status_message(f"Capturing training data from image {i+1}/{len(self.image_paths)}...", 0)
                 
                 # Load uncorrected image (raw)
                 uncorrected_image = DNGImage(uncorrected_path, process_rgb=False)
@@ -560,7 +558,7 @@ class ImageCorrectionTab(QWidget):
                 # Run synchronously for now (we could make this async for each image)
                 self.training_worker.run()
                 
-            self.showStatusMessage("Training data saved successfully!", 5000)
+            self.show_status_message("Training data saved successfully!", 5000)
             
             # Re-enable button
             self.ui.saveTrainingDataButton.setEnabled(True)
@@ -582,7 +580,7 @@ class ImageCorrectionTab(QWidget):
         # Re-enable button
         self.ui.saveTrainingDataButton.setEnabled(True)
         self.ui.saveTrainingDataButton.setText("Save Training Data")
-        self.showStatusMessage("Training data capture failed", 5000)
+        self.show_status_message("Training data capture failed", 5000)
 
     def select_image(self):
         # Get the last used directory from preferences
@@ -676,19 +674,19 @@ class ImageCorrectionTab(QWidget):
         profile_was_auto_loaded = False
         
         # Recommend matching profile if no profile is currently loaded
-        if not self.app.current_profile:
+        if not self.app.current_profile or not self.app.current_profile_path:
             profile_was_auto_loaded = self.recommend_matching_profile()
 
         # Show status message about lazy loading
         if len(image_paths) > 1:
             loaded_count = len([img for img in rgb_images if img is not None])
             if loaded_count == 1:
-                self.showStatusMessage(
+                self.show_status_message(
                     f"Loaded first image for preview ({len(image_paths)} total selected). Additional images will be loaded during correction.", 8000)
             else:
-                self.showStatusMessage(f"Loaded all {loaded_count} images successfully!", 3000)
+                self.show_status_message(f"Loaded all {loaded_count} images successfully!", 3000)
         else:
-            self.showStatusMessage("Image loaded successfully!", 3000)
+            self.show_status_message("Image loaded successfully!", 3000)
             
             # Auto-run preview for single image if profile was loaded
             if profile_was_auto_loaded and self.app.current_profile and self.is_interactive_mode():
@@ -802,7 +800,7 @@ class ImageCorrectionTab(QWidget):
         if not self.rawImages or self.rawImages[0] is None:
             # Show a message when no image is loaded
             if hasattr(self, 'image_view'):
-                self.image_view.showMessage("No images loaded")
+                self.image_view.show_message("No images loaded")
             return
 
         try:
@@ -1188,26 +1186,21 @@ class ImageCorrectionTab(QWidget):
 
     def on_dark_frame_hotpixels_toggled(self, checked: bool):
         """Handle Dark Frame Hotpixels checkbox toggle"""
-        print(f"Dark Frame Hotpixels checkbox toggled: {checked}")
         self.update_hot_pixel_overlays()
 
     def on_dark_frame_subtraction_toggled(self, checked: bool):
         """Handle Dark Frame Subtraction checkbox toggle"""
-        print(f"Dark Frame Subtraction checkbox toggled: {checked}")
 
     def on_predicted_random_hotpixels_toggled(self, checked: bool):
         """Handle Predicted Random Hotpixels checkbox toggle"""
-        print(f"Predicted Random Hotpixels checkbox toggled: {checked}")
         
     def on_show_corrected_image_toggled(self, checked: bool):
         """Handle Show Corrected Image checkbox toggle"""
-        print(f"Show Corrected Image checkbox toggled: {checked}")
         # Update the displayed image based on the checkbox state
         self.display_original_image()
     
     def on_show_rgb_image_toggled(self, checked: bool):
         """Handle Show RGB Image checkbox toggle"""
-        print(f"Show RGB Image checkbox toggled: {checked}")
         # Update the displayed image based on the checkbox state
         self.display_original_image()
 

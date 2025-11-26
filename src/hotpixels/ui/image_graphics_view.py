@@ -1,11 +1,11 @@
-from PySide6.QtWidgets import QGraphicsView, QGraphicsScene, QGraphicsPixmapItem, QGraphicsEllipseItem, QGraphicsTextItem
-from PySide6.QtGui import QPainter, QPen, QBrush, QFont
+from PySide6.QtWidgets import QGraphicsView, QGraphicsScene, QGraphicsPixmapItem, QGraphicsTextItem
+from PySide6.QtGui import QPainter, QFont
 from PySide6.QtCore import Signal, QPointF, Qt
 
 
 class ImageGraphicsView(QGraphicsView):
     """Custom QGraphicsView with pan/zoom and mouse tracking"""
-    mouseMoved = Signal(int, int)  # x, y coordinates in image space
+    mouse_moved = Signal(int, int)  # x, y coordinates in image space
     
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -67,7 +67,7 @@ class ImageGraphicsView(QGraphicsView):
             # Check bounds
             if (0 <= img_x < self.original_pixmap.width() and 
                 0 <= img_y < self.original_pixmap.height()):
-                self.mouseMoved.emit(img_x, img_y)
+                self.mouse_moved.emit(img_x, img_y)
                 
         super().mouseMoveEvent(event)
         
@@ -113,7 +113,7 @@ class ImageGraphicsView(QGraphicsView):
             for item in items_to_remove:
                 self.scene.removeItem(item)
         
-    def showMessage(self, message: str):
+    def show_message(self, message: str):
         """Show a text message in the view when no image is loaded"""
         # Clear existing items
         self.scene.clear()

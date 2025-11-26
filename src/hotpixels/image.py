@@ -84,7 +84,7 @@ class Image:
                 temp_raw = exiftool_metadata.get(tag, None)
                 if temp_raw:
                     # Parse temperature - it might be a string like "32 C" or just a number
-                    temp = parseTemperature(temp_raw)
+                    temp = parse_temperature(temp_raw)
                     if temp is not None:
                         self.sensor_temperature = temp
                         return temp
@@ -105,13 +105,14 @@ class Image:
             for tag in possible_tags:
                 serial_raw = exiftool_metadata.get(tag, None)
                 if serial_raw:
-                    uid = parseSerialNumber(serial_raw)
+                    uid = parse_serial_number(serial_raw)
                     if uid:
                         self.unique_id = uid
                         return uid
                     
         return None
-    
+
+
 class DNGImage(Image):
     def __init__(self, filename: str, process_rgb: bool = False, debug: bool = False):
         super().__init__(filename)
@@ -218,7 +219,8 @@ class DNGImage(Image):
 
         self.raw_img = corrected_img
 
-def parseSerialNumber(raw: str) -> str:
+
+def parse_serial_number(raw: str) -> str:
     """Convert space delimited byte string to hex string."""
     try:
         # Convert the space-separated bytes to hex string
@@ -232,7 +234,8 @@ def parseSerialNumber(raw: str) -> str:
     except ValueError:
         return ''
 
-def parseTemperature(raw) -> float | None:
+
+def parse_temperature(raw) -> float | None:
     """Parse temperature value from EXIF data.
     
     Args:

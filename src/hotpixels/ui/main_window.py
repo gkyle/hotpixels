@@ -1,7 +1,7 @@
 from pathlib import Path
 from typing import List, Optional
 
-from PySide6.QtWidgets import QMainWindow, QMessageBox
+from PySide6.QtWidgets import QMainWindow
 from PySide6.QtCore import QTimer, QPoint
 from PySide6.QtGui import QGuiApplication
 from PySide6.QtUiTools import QUiLoader
@@ -74,6 +74,11 @@ class HotPixelGUI(QMainWindow):
         height = screen_resolution.height()
 
         self.resize(width * 0.60, height * 0.70)
+
+        # TODO: Remove hardcoded resize after testing
+        self.resize(1920, 1080-24)
+        print("Window size", self.size())
+
         self.center()
     
     def setup_tabs(self):
@@ -222,5 +227,3 @@ class HotPixelGUI(QMainWindow):
         except Exception as e:
             # Silently fail - no dialog as requested
             print(f"Failed to load startup dark frames: {e}")
-    
-

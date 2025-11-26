@@ -43,15 +43,15 @@ class ProfileLibraryTab(QWidget):
         """Set reference to the main window for shared profile access"""
         self.main_window = main_window
 
-    def statusBar(self):
+    def status_bar(self):
         """Get the status bar from the parent main window"""
         if self.main_window and hasattr(self.main_window, 'statusBar'):
             return self.main_window.statusBar()
         return None
 
-    def showStatusMessage(self, message: str, timeout: int = 0):
+    def show_status_message(self, message: str, timeout: int = 0):
         """Show a message in the status bar with optional timeout"""
-        status_bar = self.statusBar()
+        status_bar = self.status_bar()
         if status_bar:
             status_bar.showMessage(message, timeout)
 
@@ -142,7 +142,7 @@ class ProfileLibraryTab(QWidget):
         self.populate_table()  # Clear the table
 
         # Show loading status
-        self.showStatusMessage("Loading profiles...", 0)
+        self.show_status_message("Loading profiles...", 0)
 
         # Disable refresh button during loading
         if hasattr(self.ui, 'refreshButton'):
@@ -161,7 +161,7 @@ class ProfileLibraryTab(QWidget):
         self.populate_table()
 
         # Update status
-        self.showStatusMessage(f"Found {len(self.profile_data)} profiles in library", 3000)
+        self.show_status_message(f"Found {len(self.profile_data)} profiles in library", 3000)
 
         # Re-enable refresh button
         if hasattr(self.ui, 'refreshButton'):
@@ -182,11 +182,11 @@ class ProfileLibraryTab(QWidget):
 
     def on_loading_progress(self, message):
         """Handle progress updates from async profile loading"""
-        self.showStatusMessage(message, 0)
+        self.show_status_message(message, 0)
 
     def on_loading_error(self, error_message):
         """Handle errors from async profile loading"""
-        self.showStatusMessage(f"Error loading profiles: {error_message}", 10000)
+        self.show_status_message(f"Error loading profiles: {error_message}", 10000)
 
         # Re-enable refresh button
         if hasattr(self.ui, 'refreshButton'):
@@ -372,8 +372,8 @@ class ProfileLibraryTab(QWidget):
         if reply == MsgBox.Yes:
             try:
                 os.remove(profile_path)
-                self.showStatusMessage(f"Profile deleted: {file_name}", 3000)
+                self.show_status_message(f"Profile deleted: {file_name}", 3000)
                 # Refresh the library to update the display
                 self.refresh_profiles()
             except Exception as e:
-                self.showStatusMessage(f"Failed to delete profile: {str(e)}", 10000)
+                self.show_status_message(f"Failed to delete profile: {str(e)}", 10000)

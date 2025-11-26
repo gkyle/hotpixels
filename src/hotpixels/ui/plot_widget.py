@@ -30,7 +30,7 @@ class PlotWidget(QWidget):
 
     def plot_unified_hot_pixel_analysis(self, profile: HotPixelProfile):
         """Plot unified analysis with pie charts on top and bar charts below"""
-        startTime = time.time()
+        start_time = time.time()
         self.figure.clear()
 
         if not profile.common_statistics:
@@ -166,7 +166,7 @@ class PlotWidget(QWidget):
 
     def plot_hot_pixel_map(self, profile: HotPixelProfile):
         """Plot hot pixel locations colored by Bayer pattern"""
-        startTime = time.time()
+        start_time = time.time()
         self.figure.clear()
 
         ax = self.figure.add_subplot(111)
@@ -237,7 +237,7 @@ class PlotWidget(QWidget):
 
     def plot_dark_frame_histogram(self, profile: HotPixelProfile):
         """Plot histogram of dark frame profile values"""
-        startTime = time.time()
+        start_time = time.time()
         self.figure.clear()
 
         # Try to load the noise profile - first check for temporary data, then sidecar file

@@ -1,6 +1,5 @@
 ﻿#!/usr/bin/env python3
 import sys
-import os
 import argparse
 
 from PySide6.QtWidgets import QApplication

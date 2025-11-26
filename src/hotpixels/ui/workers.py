@@ -72,19 +72,19 @@ class CorrectionWorker(QThread):
                 # Load image
                 self.progress.emit(f"Loading image {i+1}/{len(self.image_paths)}...")
                 self.detailed_progress.emit(current_step, total_steps, f"Loading image {i+1}/{len(self.image_paths)}")
-                dngImage = DNGImage(image_path)
+                dng_image = DNGImage(image_path)
                 current_step += 1
                 
                 # Subtract dark frame
                 if self.subtract_noise_profile:
                     self.progress.emit(f"Subtracting dark frame {i+1}/{len(self.image_paths)}...")
                     self.detailed_progress.emit(current_step, total_steps, f"Dark frame subtraction {i+1}/{len(self.image_paths)}")
-                    self.app.subtract_dark_frame(dngImage, self.profile)
+                    self.app.subtract_dark_frame(dng_image, self.profile)
                 
                 # Correct profile hot pixels
                 self.progress.emit(f"Correcting hot pixels {i+1}/{len(self.image_paths)}...")
                 self.detailed_progress.emit(current_step, total_steps, f"Profile correction {i+1}/{len(self.image_paths)}")
-                self.app.correct_hot_pixels(dngImage, self.profile)
+                self.app.correct_hot_pixels(dng_image, self.profile)
                 current_step += 1
 
                 if self.apply_residual_hotpixel_model:
@@ -95,14 +95,14 @@ class CorrectionWorker(QThread):
                         self.progress.emit(f"Image {i+1}/{len(self.image_paths)}: {msg}")
                         self.detailed_progress.emit(current_step, total_steps, msg)
                     
-                    detections = self.app.detect_residual_hotpixels_cnn(dngImage, progress_callback=cnn_progress)
-                    self.app.apply_cnn_corrections(dngImage, detections, sensitivity=self.cnn_sensitivity)
+                    detections = self.app.detect_residual_hotpixels_cnn(dng_image, progress_callback=cnn_progress)
+                    self.app.apply_cnn_corrections(dng_image, detections, sensitivity=self.cnn_sensitivity)
                     model_hot_pixels.append(detections)
                     current_step += 1
                 
                 # Save corrected image
                 self.progress.emit(f"Saving corrected image {i+1}/{len(self.image_paths)}...")
-                corrected_path = self.app.save_corrected_image(dngImage, self.subtract_noise_profile, self.apply_residual_hotpixel_model)
+                corrected_path = self.app.save_corrected_image(dng_image, self.subtract_noise_profile, self.apply_residual_hotpixel_model)
                 corrected_paths.append(corrected_path)
             
             self.progress.emit("All corrections complete.")

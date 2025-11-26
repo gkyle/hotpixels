@@ -22,7 +22,7 @@ fi;
 
 # Check for compatible GPU.
 echo "Determining correct configuration for your GPU..."
-torch_variant=`uv run --no-sync src/setup/probeGPU.py`
+torch_variant=`uv run --no-sync src/setup/probe_gpu.py`
 if [ "$torch_variant" = "" ]; then 
     torch_variant="cpu"
 fi;
@@ -35,5 +35,5 @@ uv sync --extra $torch_variant
 
 # Run
 echo "Starting HotPixels..."
-uv run --no-sync src/setup/lrcPath.py
+uv run --no-sync src/setup/lrc_path.py
 uv run --no-sync src/main.py $*

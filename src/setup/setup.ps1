@@ -7,7 +7,7 @@ catch {
     $env:PATH += ";$env:USERPROFILE\.local\bin"
 }
 
-$torch_variant = Invoke-Expression -Command "uv run --no-sync src/setup/probeGPU.py"
+$torch_variant = Invoke-Expression -Command "uv run --no-sync src/setup/probe_gpu.py"
 Write-Host "Using torch variant: $torch_variant"
 if ($torch_variant.Length -eq 0 -or $torch_variant -Match "not found") {
     $torch_variant = "cpu"

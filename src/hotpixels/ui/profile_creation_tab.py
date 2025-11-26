@@ -54,16 +54,16 @@ class ProfileCreationTab(QWidget):
             current_tab = self.ui.plotTabWidget.currentIndex()
             self.on_tab_changed(current_tab)
 
-    def statusBar(self):
+    def status_bar(self):
         """Get the status bar from the parent main window"""
         main_window = self.window()  # Get the top-level window
         if hasattr(main_window, 'statusBar'):
             return main_window.statusBar()
         return None
 
-    def showStatusMessage(self, message: str, timeout: int = 5000):
+    def show_status_message(self, message: str, timeout: int = 5000):
         """Show a message in the status bar with optional timeout"""
-        status_bar = self.statusBar()
+        status_bar = self.status_bar()
         if status_bar:
             status_bar.showMessage(message, timeout)
 
@@ -448,9 +448,9 @@ class ProfileCreationTab(QWidget):
                     self.main_window.preferences.update_last_profile_path(filename)
 
                 # Update status bar with success message
-                self.showStatusMessage(f"Profile saved successfully: {filename}", 5000)
+                self.show_status_message(f"Profile saved successfully: {filename}", 5000)
             except Exception as e:
-                self.showStatusMessage(f"Failed to save profile: {str(e)}", 10000)
+                self.show_status_message(f"Failed to save profile: {str(e)}", 10000)
 
     def _ask_copy_dng_files(self) -> bool:
         """Ask user if they want to copy DNG files to a local directory"""
@@ -492,7 +492,7 @@ class ProfileCreationTab(QWidget):
                     # Update the path in the profile to use the local copy
                     self.app.current_profile.frame_paths[i] = local_path
 
-            self.showStatusMessage(f"DNG files copied to: {dng_dir}", 5000)
+            self.show_status_message(f"DNG files copied to: {dng_dir}", 5000)
 
     def _generate_profile_filename(self) -> str:
         """Generate a suggested filename based on profile metadata"""
@@ -578,7 +578,7 @@ class ProfileCreationTab(QWidget):
         if ok and new_id.strip():
             self.app.current_profile.camera_metadata.camera_id = new_id.strip()
             self.update_profile_summary()
-            self.showStatusMessage("Camera ID updated", 3000)
+            self.show_status_message("Camera ID updated", 3000)
 
     def update_profile_summary(self):
         """Update the profile summary display"""
@@ -665,6 +665,6 @@ class ProfileCreationTab(QWidget):
                 try:
                     profile = HotPixelProfile.load_from_file(filename)
                     self.load_profile_data(profile)
-                    self.showStatusMessage(f"Profile loaded successfully: {filename}", 5000)
+                    self.show_status_message(f"Profile loaded successfully: {filename}", 5000)
                 except Exception as e:
-                    self.showStatusMessage(f"Failed to open profile: {str(e)}", 10000)
+                    self.show_status_message(f"Failed to open profile: {str(e)}", 10000)

@@ -2,15 +2,15 @@
 import os
 import argparse
 
-# Add the src directory to the path so we can import hotpixels modules
-src_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-if src_dir not in sys.path:
-    sys.path.insert(0, src_dir)
-
 from PySide6.QtWidgets import QApplication
 
 # Import all UI components from the ui package
 from hotpixels.ui import HotPixelGUI
+
+# Add the src directory to the path so we can import hotpixels modules
+src_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+if src_dir not in sys.path:
+    sys.path.insert(0, src_dir)
 
 
 def main(profile_path=None, image_paths=None, darkframes_paths=None):

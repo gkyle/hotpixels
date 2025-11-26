@@ -3,6 +3,7 @@ import re
 import sys
 import platform
 
+
 def get_cuda_version():
     try:
         result = subprocess.run(['nvidia-smi'], capture_output=True, text=True, check=True)
@@ -19,6 +20,7 @@ def get_cuda_version():
     except FileNotFoundError:
         print("nvidia-smi command not found. Is the NVIDIA driver installed?", file=sys.stderr)
         return None
+
 
 def has_mps_support():
     """Check if Apple Silicon MPS is available."""
@@ -41,7 +43,8 @@ def has_mps_support():
         pass
     
     return False
-    
+
+
 if __name__ == "__main__":
     # First check for MPS on macOS
     if has_mps_support():
@@ -49,14 +52,13 @@ if __name__ == "__main__":
     else:
         # Check for CUDA
         cuda_version = get_cuda_version()
-        if not cuda_version is None:
+        if cuda_version is not None:
             cuda_version = int(float(cuda_version))
             if cuda_version == 12:
-                print("cu124",end="")
+                print("cu124", end="")
             elif cuda_version == 11:
-                print("cu118",end="")
+                print("cu118", end="")
             else:
-                print("cpu",end="")
+                print("cpu", end="")
         else:
-            print("cpu",end="")
-
+            print("cpu", end="")

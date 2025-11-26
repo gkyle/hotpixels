@@ -1,10 +1,10 @@
 import torch
 import torch.nn as nn
 
-IMG_SIZE = 128 # Sizes in comments based on IMG_SIZE=32
+IMG_SIZE = 128  # Sizes in comments based on IMG_SIZE=32
 
 
-class HotPixelSegmentationCNN(nn.Module):
+class HotPixelSegmentationCNN(nn.Module):  # U-Net architecture
     """
     U-Net style architecture for pixel-level segmentation.
     Input: 1xIMG_SIZExIMG_SIZE grayscale image
