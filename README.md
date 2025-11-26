@@ -14,7 +14,12 @@ Before Correction             |  After Correction
 
 ## Why Correct RAW Images?
 
-Hot pixels in RAW data appear as single bright pixels. During demosaicing, these bloom into colored blobs affecting surrounding pixels. If we fix them in the raw image, the overall impact is minimized.
+Hot pixels in RAW data appear as single bright pixels. When RAW images are processed, during demosaicing, these bloom into colored blobs affecting surrounding pixels. If we fix them in the raw image, the overall impact is minimized.
+
+Raw Hot Pixels             |  Processed Hot Pixels
+:-------------------------:|:-------------------------:
+<img src="docs/images/raw_hot_pixels.png" width="100%"/>  |  <img src="docs/images/rgb_hot_pixels.png" width="100%"/>
+
 
 ## Features
 
