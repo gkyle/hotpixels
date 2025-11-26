@@ -18,7 +18,6 @@ from PySide6.QtGui import QImage, QPixmap
 from PySide6.QtUiTools import QUiLoader
 from PySide6.QtWidgets import QMessageBox
 from PySide6.QtWidgets import QListWidgetItem as ListItem
-from PySide6.QtWidgets import QProgressBar, QHBoxLayout
 
 from hotpixels.app import App
 from hotpixels.profile import HotPixelProfile
@@ -105,24 +104,9 @@ class ImageCorrectionTab(QWidget):
         layout.addWidget(self.ui)
         self.setLayout(layout)
         
-        # Add progress bar
-        if hasattr(self.ui, 'openOriginalButton'):
-            button = self.ui.openOriginalButton
-            parent_layout = button.parent().layout()
-            
-            if parent_layout:
-                # Create progress bar
-                self.correction_progress_bar = QProgressBar()
-                self.correction_progress_bar.setVisible(False)  # Hidden by default
-                self.correction_progress_bar.setMaximum(100)
-                self.correction_progress_bar.setValue(0)
-                self.correction_progress_bar.setTextVisible(True)
-                self.correction_progress_bar.setFormat("%p% - %v/%m")
-                
-                # Insert progress bar before the button in the layout
-                button_index = parent_layout.indexOf(button)
-                if button_index >= 0:
-                    parent_layout.insertWidget(button_index, self.correction_progress_bar)
+        # Get reference to progress bar from UI
+        if hasattr(self.ui, 'correctionProgressBar'):
+            self.correction_progress_bar = self.ui.correctionProgressBar
         
         # Replace the originalImageLabel with ImageGraphicsView
         self.setup_image_view()
