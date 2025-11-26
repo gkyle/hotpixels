@@ -1,9 +1,14 @@
 import os
 
-current_directory = os.getcwd()
-dot_path = os.path.join(current_directory, 'hotpixels.lrdevplugin/PluginPath.txt')
-lrc_path = os.path.join(current_directory, "run.bat")
+currentDirectory = os.getcwd()
+dotPath = os.path.join(currentDirectory, 'hotpixels.lrdevplugin/PluginPath.txt')
 
-with open(dot_path, 'w') as file:
-    file.write(lrc_path)
+# Determine if OS is Windows
+if os.name == 'nt':
+    lrcPath = os.path.join(currentDirectory, "run.bat")
+else:
+    lrcPath = os.path.join(currentDirectory, "run.sh")
+
+with open(dotPath, 'w') as file:
+    file.write(lrcPath)
     file.close()

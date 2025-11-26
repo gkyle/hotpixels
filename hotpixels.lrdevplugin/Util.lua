@@ -152,13 +152,12 @@ Util.exportFiles = function(exportContext, tempPath, maxFiles)
 end
 
 Util.getCommand = function(paramString)
-	local command = appPath..' '..paramString..' &'
+	local command
 	if WIN_ENV then
 		-- For Windows, show the command window
 		command = '"start /wait cmd.exe /c '..appPath..' '..paramString..'"'
-	elseif MAC_ENV then
-		-- For Mac, use osascript to open a new Terminal window
-		command = 'osascript -e '..'tell application "Terminal" to do script "'..appPath..' '..paramString..'"'
+	else
+		command = appPath..' '..paramString
 	end
 
     return command

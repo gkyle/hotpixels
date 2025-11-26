@@ -47,6 +47,7 @@ processRenderedPhotos = function(functionContext, exportContext)
 	LrTasks.startAsyncTask(function ()
 		myLogger:trace(command)
 		local ret = LrTasks.execute(command)
+		myLogger:trace(string.format("Command returned with status: %s", tostring(ret)))
 		Util.onFinish(ret, tempPath, sourcePhoto, inputFiles)
 	end)
 end

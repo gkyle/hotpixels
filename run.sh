@@ -1,5 +1,8 @@
 #!/bin/sh
 
+# Change directory to the script's location
+cd "$(dirname "$0")"
+
 # Install UV if not already installed
 uv_version=`uv -V`
 if [ "$uv_version" = "" ]; then 
@@ -32,4 +35,5 @@ uv sync --extra $torch_variant
 
 # Run
 echo "Starting HotPixels..."
-uv run --no-sync src/main.py
+uv run --no-sync src/setup/lrcPath.py
+uv run --no-sync src/main.py $*
