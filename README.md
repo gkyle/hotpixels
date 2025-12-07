@@ -47,7 +47,7 @@ Manage profiles for different cameras, settings, and temperatures. Auto-matches 
 
 ## Usage
 
-Clone or download this repository.
+Clone this repository or [download the zip](https://github.com/gkyle/hotpixels/archive/refs/heads/main.zip) and uncompress on your system.
 
 **Windows:**
 ```
